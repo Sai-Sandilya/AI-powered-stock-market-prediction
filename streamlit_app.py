@@ -13,13 +13,30 @@ import plotly.express as px
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from future_forecasting import FutureForecaster
-
-# Import enhanced training system
-from train_enhanced_system import EnhancedTrainingSystem
-from backtesting import Backtester
-from macro_indicators import MacroIndicators
 import joblib
 import os
+
+# Optional imports - only import if available
+try:
+    from train_enhanced_system import EnhancedTrainingSystem
+    ENHANCED_TRAINING_AVAILABLE = True
+except ImportError:
+    ENHANCED_TRAINING_AVAILABLE = False
+    print("Enhanced training system not available")
+
+try:
+    from backtesting import Backtester
+    BACKTESTING_AVAILABLE = True
+except ImportError:
+    BACKTESTING_AVAILABLE = False
+    print("Backtesting module not available")
+
+try:
+    from macro_indicators import MacroIndicators
+    MACRO_INDICATORS_AVAILABLE = True
+except ImportError:
+    MACRO_INDICATORS_AVAILABLE = False
+    print("Macro indicators module not available")
 
 st.set_page_config(page_title="Stock Predictor Enhanced Dashboard", layout="wide")
 st.title("📈 Advanced Stock Predictor Dashboard with Macro Analysis")
@@ -1041,6 +1058,10 @@ if st.sidebar.button("Analyze") or symbol:
                 with st.spinner("🤖 Training enhanced model..."):
                     try:
                         # Initialize enhanced training system
+                        if not ENHANCED_TRAINING_AVAILABLE:
+                            st.error("❌ Enhanced training system not available. Please ensure all dependencies are installed.")
+                            return
+                        
                         training_system = EnhancedTrainingSystem(
                             symbol=training_symbol,
                             start_date=training_start_date.strftime('%Y-%m-%d'),
@@ -1704,6 +1725,10 @@ if st.sidebar.button("Analyze") or symbol:
                 with st.spinner("📊 Fetching macro data and generating overlay chart..."):
                     try:
                         # Initialize macro indicators fetcher
+                        if not MACRO_INDICATORS_AVAILABLE:
+                            st.error("❌ Macro indicators module not available. Please ensure all dependencies are installed.")
+                            return
+                        
                         macro_fetcher = MacroIndicators()
                         
                         # Calculate date range
