@@ -362,29 +362,34 @@ class FutureForecaster:
         # Recursive forecasting using algorithmic simulation
         for i, future_date in enumerate(future_dates):
             try:
-                # Enhanced algorithmic forecasting with technical analysis integration
+                # Professional-grade forecasting with proper constraints
                 predicted_price = self.simulate_realistic_price(
                     current_price, last_row, i, len(future_dates), sentiment_score,
                     deterministic=True
                 )
                 
-                # Apply technical analysis correction for better accuracy
-                if i > 5:  # After initial warmup period
-                    # Use moving average convergence for trend correction
-                    ma_short = sum([fp['Predicted_Close'] for fp in future_predictions[-5:]]) / 5
-                    ma_long = sum([fp['Predicted_Close'] for fp in future_predictions[-min(10, len(future_predictions)):]]) / min(10, len(future_predictions))
+                # Apply professional mean reversion and drift control
+                if i > 0:
+                    # Calculate expected price based on conservative growth model
+                    days_elapsed = i + 1
+                    annual_growth = 0.08 if len(future_dates) > 180 else 0.10  # Conservative for long-term
+                    expected_price = initial_price * (1 + annual_growth) ** (days_elapsed / 252)
                     
-                    # Trend correction factor
-                    trend_factor = 1.0 + (ma_short - ma_long) / ma_long * 0.1
+                    # Apply strong mean reversion to prevent extreme deviations
+                    current_deviation = (predicted_price - expected_price) / expected_price
                     
-                    # Apply momentum correction
-                    if len(future_predictions) >= 3:
-                        recent_changes = [future_predictions[-j]['Predicted_Close'] / future_predictions[-j-1]['Predicted_Close'] - 1 
-                                        for j in range(1, min(4, len(future_predictions)))]
-                        momentum = np.mean(recent_changes)
-                        momentum_factor = 1.0 + momentum * 0.5  # Damped momentum
-                        
-                        predicted_price *= trend_factor * momentum_factor
+                    # Professional bounds: ±30% maximum deviation from expected path
+                    max_deviation = 0.30
+                    if current_deviation > max_deviation:
+                        predicted_price = expected_price * (1 + max_deviation)
+                    elif current_deviation < -max_deviation:
+                        predicted_price = expected_price * (1 - max_deviation)
+                    
+                    # Additional smoothing for longer forecasts
+                    if len(future_dates) > 90:
+                        # Blend with expected price to prevent extreme compounding
+                        blend_factor = min(0.3, i / len(future_dates))  # Increase smoothing over time
+                        predicted_price = predicted_price * (1 - blend_factor) + expected_price * blend_factor
                 
                 # Ensure positive price
                 predicted_price = max(predicted_price, current_price * 0.5)
@@ -519,21 +524,27 @@ class FutureForecaster:
         else:
             hist_volatility = 0.25  # Default 25% annualized volatility
         
-        # Enhanced volatility modeling with proper daily fluctuations
-        base_daily_volatility = max(hist_volatility / np.sqrt(252), 0.012)  # Restore realistic minimum volatility
+        # Professional volatility modeling with proper risk controls
+        base_daily_volatility = max(hist_volatility / np.sqrt(252), 0.015)  # Professional minimum
         
-        # Scale ONLY extreme events, not daily volatility (maintain realistic day-to-day fluctuations)
-        horizon_scale = min(1.0, 60 / total_steps)  # More conservative for longer forecasts
+        # Professional volatility scaling for forecast horizon
+        if total_steps > 252:  # 1+ year: very conservative
+            vol_scale = 0.4
+        elif total_steps > 126:  # 6+ months: moderate
+            vol_scale = 0.6
+        elif total_steps > 63:   # 3+ months: slight reduction
+            vol_scale = 0.8
+        else:  # Short term: normal
+            vol_scale = 1.0
         
-        # Maintain realistic daily volatility clustering
-        vol_randomness = np.random.lognormal(0, 0.15)  # Restore realistic daily variation
+        # Controlled volatility clustering (professional approach)
+        vol_randomness = np.random.lognormal(0, 0.05 * vol_scale)  # Much more controlled
         
-        # Market stress periods (reduce frequency for longer forecasts but keep impact)
-        stress_probability = 0.02 * max(0.3, horizon_scale)  # Reduce frequency but not impact
-        if np.random.random() < stress_probability:
-            vol_randomness *= np.random.uniform(1.3, 1.7)  # Restore realistic stress volatility
+        # Rare stress events only (professional risk management)
+        if np.random.random() < 0.005:  # 0.5% chance only
+            vol_randomness *= np.random.uniform(1.1, 1.3)  # Moderate stress
         
-        daily_volatility = base_daily_volatility * vol_randomness
+        daily_volatility = base_daily_volatility * vol_randomness * vol_scale
         
         # Enhanced trend modeling with realistic long-term expectations
         trend_randomness = np.random.normal(0.0001, 0.0003)  # Maintain some trend variation
@@ -566,22 +577,23 @@ class FutureForecaster:
             # Add sentiment to base trend
             base_trend += sentiment_influence
         
-        # Enhanced cyclical components with realistic market rhythms
-        # Short-term cycle (monthly) - keep realistic for daily variation
-        phase_shift_1 = np.random.uniform(0, 2 * np.pi)
-        short_cycle = np.random.uniform(0.0005, 0.002) * np.sin(2 * np.pi * step / 21 + phase_shift_1)
+        # Professional cyclical modeling (controlled amplitudes)
+        # Very subtle cyclical components for professional forecasting
+        if total_steps <= 90:  # Only for short-term
+            # Monthly cycle (minimal)
+            phase_shift_1 = np.random.uniform(0, 2 * np.pi)
+            short_cycle = np.random.uniform(0.0001, 0.0003) * np.sin(2 * np.pi * step / 21 + phase_shift_1)
+            
+            # Weekly variation (minimal)
+            noise_cycle_1 = np.random.uniform(-0.0002, 0.0002) * np.sin(2 * np.pi * step / 5)
+        else:
+            short_cycle = 0.0
+            noise_cycle_1 = 0.0
         
-        # Medium-term cycle (quarterly) - moderate scaling only
-        phase_shift_2 = np.random.uniform(0, 2 * np.pi)
-        medium_cycle = np.random.uniform(0.001, 0.003) * np.sin(2 * np.pi * step / 63 + phase_shift_2) * max(0.5, horizon_scale)
-        
-        # Long-term cycle (yearly) - scale down only this for longer forecasts
-        phase_shift_3 = np.random.uniform(0, 2 * np.pi)
-        long_cycle = np.random.uniform(0.0003, 0.0015) * np.sin(2 * np.pi * step / 252 + phase_shift_3) * horizon_scale
-        
-        # Restore realistic noise cycles for daily variation
-        noise_cycle_1 = np.random.uniform(-0.001, 0.001) * np.sin(2 * np.pi * step / 5)  # Weekly variation
-        noise_cycle_2 = np.random.uniform(-0.0005, 0.0005) * np.cos(2 * np.pi * step / 10)  # Bi-weekly variation
+        # No medium/long-term cycles for professional stability
+        medium_cycle = 0.0
+        long_cycle = 0.0
+        noise_cycle_2 = 0.0
         
         # Mean reversion component (weaker)
         # If price has moved too far from moving average, add reversion force
@@ -638,49 +650,57 @@ class FutureForecaster:
         # Adjust volatility by regime with more randomness
         adjusted_volatility = daily_volatility * regime_volatility * np.random.uniform(0.7, 1.5)
         
-        # Enhanced controlled random shocks with proper daily movement
-        # Keep daily shocks realistic but reduce extreme outliers for longer forecasts
-        random_shock_1 = np.random.normal(0, adjusted_volatility * 0.7)  # Restore realistic daily movement
-        random_shock_2 = np.random.laplace(0, adjusted_volatility * 0.1)  # Restore fat-tail events  
-        random_shock_3 = np.random.uniform(-adjusted_volatility, adjusted_volatility) * 0.05  # Small uniform component
+        # Professional shock generation with strict risk controls
+        # Primary Gaussian shock (controlled magnitude)
+        random_shock_1 = np.random.normal(0, adjusted_volatility * 0.3)  # Much more controlled
         
-        # Apply conservative scaling only to extreme outliers
-        outlier_threshold = 2.0 * adjusted_volatility
-        combined_shock = random_shock_1 + random_shock_2 + random_shock_3
+        # Minimal fat-tail events (professional risk management)
+        if np.random.random() < 0.01:  # 1% chance only
+            random_shock_2 = np.random.laplace(0, adjusted_volatility * 0.05)  # Very small fat-tail
+        else:
+            random_shock_2 = 0.0
         
-        # Reduce only extreme movements for longer forecasts, keep normal daily moves
-        if abs(combined_shock) > outlier_threshold and total_steps > 90:
-            combined_shock *= horizon_scale
+        # No uniform shock for professional modeling
+        combined_shock = random_shock_1 + random_shock_2
         
-        combined_shock *= 0.95  # Slight overall reduction
+        # Professional shock limiting based on forecast horizon
+        if total_steps > 180:  # Long-term: very tight control
+            shock_limit = adjusted_volatility * 0.5
+        elif total_steps > 90:  # Medium-term: moderate control
+            shock_limit = adjusted_volatility * 0.8
+        else:  # Short-term: normal control
+            shock_limit = adjusted_volatility * 1.2
+        
+        # Apply shock limits
+        combined_shock = np.clip(combined_shock, -shock_limit, shock_limit)
         
         # Apply price change using enhanced geometric Brownian motion
         price_change = total_trend + combined_shock
         new_price = current_price * np.exp(price_change)
         
-        # Restore realistic news events for market dynamics
-        news_probability = 0.025 * max(0.4, horizon_scale)  # Moderate reduction for longer forecasts
-        if np.random.random() < news_probability:
-            # Keep realistic news impact but moderate for longer forecasts
-            event_type = np.random.choice(['earnings', 'economic', 'geopolitical', 'technical'])
-            jump_scale = max(0.6, horizon_scale)  # Moderate scaling only
-            
-            if event_type == 'earnings':
-                jump_size = np.random.normal(0, 0.015 * jump_scale)  # Realistic earnings surprise
-            elif event_type == 'economic':
-                jump_size = np.random.normal(0, 0.012 * jump_scale)  # Realistic economic news
-            elif event_type == 'geopolitical':
-                jump_size = np.random.normal(0, 0.018 * jump_scale)  # Realistic geopolitical move
-            else:  # technical
-                jump_size = np.random.normal(0, 0.008 * jump_scale)  # Realistic technical move
+        # Professional news event modeling (very conservative)
+        if total_steps <= 90:  # Only for short-term forecasts
+            news_probability = 0.008  # Very rare events only
+            if np.random.random() < news_probability:
+                # Professional-grade event impacts (minimal)
+                event_type = np.random.choice(['earnings', 'economic', 'technical'])
                 
-            new_price *= np.exp(jump_size)
+                if event_type == 'earnings':
+                    jump_size = np.random.normal(0, 0.005)  # 0.5% max earnings impact
+                elif event_type == 'economic':
+                    jump_size = np.random.normal(0, 0.003)  # 0.3% economic impact
+                else:  # technical
+                    jump_size = np.random.normal(0, 0.002)  # 0.2% technical impact
+                    
+                new_price *= np.exp(jump_size)
+        # No news events for medium/long-term forecasts (professional approach)
         
-        # Restore realistic gap simulation for weekend effects
-        gap_probability = 0.12 * max(0.5, horizon_scale)  # Moderate reduction for longer forecasts
-        if step % 5 == 0 and np.random.random() < gap_probability:
-            gap_size = np.random.normal(0, 0.012 * max(0.7, horizon_scale))  # Realistic weekend gaps
-            new_price *= np.exp(gap_size)
+        # Professional gap modeling (minimal impact)
+        if total_steps <= 63:  # Only for very short-term forecasts
+            if step % 5 == 0 and np.random.random() < 0.05:  # Very rare gaps
+                gap_size = np.random.normal(0, 0.003)  # Minimal 0.3% gaps
+                new_price *= np.exp(gap_size)
+        # No gaps for medium/long-term forecasts
         
         # Add momentum/autocorrelation (trending behavior)
         if hasattr(self, 'previous_returns') and len(self.previous_returns) > 0:
@@ -700,16 +720,18 @@ class FutureForecaster:
         if len(self.previous_returns) > 20:
             self.previous_returns = self.previous_returns[-20:]
         
-        # Smart price bounds: realistic daily movement with compounding protection
-        # Allow normal daily volatility but prevent extreme outliers that compound
-        if total_steps > 180:  # 6+ months: moderate bounds for realistic daily moves
-            bound_range = 0.06   # ±6% daily (realistic but controlled)
-        elif total_steps > 90:  # 3+ months: normal bounds  
-            bound_range = 0.07   # ±7% daily 
-        else:  # Short term: normal bounds
-            bound_range = 0.08   # ±8% daily
+        # Professional price bounds (strict risk management)
+        # Very tight bounds for professional-grade forecasting
+        if total_steps > 252:  # 1+ year: extremely tight
+            bound_range = 0.015  # ±1.5% daily max
+        elif total_steps > 126:  # 6+ months: very tight
+            bound_range = 0.025  # ±2.5% daily max  
+        elif total_steps > 63:   # 3+ months: tight
+            bound_range = 0.035  # ±3.5% daily max
+        else:  # Short term: moderate
+            bound_range = 0.05   # ±5% daily max
         
-        # Apply tighter bounds only for extreme outlier moves
+        # Apply professional bounds
         min_price = current_price * (1 - bound_range)
         max_price = current_price * (1 + bound_range)
         new_price = np.clip(new_price, min_price, max_price)
