@@ -636,7 +636,7 @@ if st.sidebar.button("Analyze") or symbol:
                         ("2 years", 504)
                     ],
                     format_func=lambda x: x[0],
-                    index=3,  # Default to 1 year
+                    index=0,  # Default to 30 days for more realistic results
                     key="forecast_horizon"
                 )
             forecast_days = forecast_horizon[1]
