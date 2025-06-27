@@ -833,7 +833,7 @@ if st.sidebar.button("Analyze") or symbol:
                                     
                                     # Plot forecast data
                                     ax.plot(fore_clean['Date'], fore_clean['Price'], 
-                                           label='Forecast', color='#ff7f0e', linewidth=2, linestyle='--', alpha=0.8)
+                                           label='Forecast', color='#ff7f0e', linewidth=2, alpha=0.8)
                                     
                                     # Formatting
                                     ax.set_xlabel('Date', fontsize=12)
@@ -876,7 +876,7 @@ if st.sidebar.button("Analyze") or symbol:
                                         y=fore_clean['Price'],
                                         mode='lines',
                                         name='Forecast',
-                                        line=dict(color='#ff7f0e', width=2, dash='dash'),
+                                        line=dict(color='#ff7f0e', width=2),
                                         opacity=0.8
                                     ))
                                     
