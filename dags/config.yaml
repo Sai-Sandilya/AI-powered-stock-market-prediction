@@ -1,0 +1,60 @@
+# -------------------------------------------------------------------
+# CONFIGURATION FILE FOR THE INSTITUTIONAL-GRADE ETL PIPELINE
+# -------------------------------------------------------------------
+
+# List of stock symbols to be included in the ETL process
+# Add or remove symbols as needed.
+stocks:
+  - "AAPL"
+  - "MSFT"
+  - "GOOGL"
+  - "AMZN"
+  - "NVDA"
+  - "TSLA"
+  - "META"
+  - "NFLX"
+
+# API keys for various data sources.
+# IMPORTANT: Replace "YOUR_API_KEY" with your actual API keys.
+api_keys:
+  polygon: "YOUR_API_KEY"
+  newsapi: "YOUR_API_KEY"
+  alpha_vantage: "YOUR_API_KEY"
+  fred: "YOUR_API_KEY"  # Federal Reserve Economic Data (FRED) API Key
+
+# Configuration for data fetching
+data_fetching:
+  # Date range for historical data pulls
+  start_date: "2020-01-01"
+  end_date: "today"  # Use "today" for the current date
+  
+  # Configuration for FRED macroeconomic data series
+  fred_series:
+    - "DGS10"  # 10-Year Treasury Constant Maturity Rate
+    - "T10Y2Y" # 10-Year Treasury Constant Maturity Minus 2-Year Treasury Constant Maturity
+    - "VIXCLS" # CBOE Volatility Index (VIX)
+    - "DFF"    # Federal Funds Effective Rate
+
+# Configuration for data storage
+storage:
+  # Base directory for all data
+  base_path: "data"
+  
+  # Subdirectories for raw and processed data
+  raw_path: "data/raw_data"
+  processed_path: "data/processed_data"
+  
+  # Format for storing processed data (e.g., "parquet", "csv")
+  format: "parquet"
+
+# Airflow DAG configuration
+airflow:
+  dag_id: "institutional_etl_pipeline"
+  schedule_interval: "0 1 * * *"  # Run daily at 1:00 AM UTC
+  catchup: False
+  default_args:
+    owner: "airflow"
+    depends_on_past: False
+    email_on_failure: False
+    email_on_retry: False
+    retries: 1 

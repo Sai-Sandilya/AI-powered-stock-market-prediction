@@ -1,0 +1,78 @@
+# Core Data Science Libraries
+pandas>=2.0.0
+numpy>=1.26.4
+scikit-learn>=1.3.0
+
+# Stock Data Sources
+yfinance>=0.2.63
+alpha_vantage>=3.0.0
+nsepy>=0.8
+
+# Machine Learning & Deep Learning
+tensorflow>=2.13.0
+keras>=2.13.0
+torch>=2.0.0
+xgboost>=1.7.0
+
+# Web Framework & API
+streamlit>=1.28.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Data Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Web Scraping & APIs
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+selenium>=4.15.0
+
+# Natural Language Processing
+textblob>=0.17.1
+nltk>=3.8.1
+vaderSentiment>=3.3.2
+
+# Technical Analysis
+ta-lib>=0.4.28
+TA-Lib>=0.4.28
+
+# Database & Storage
+sqlalchemy>=2.0.0
+pymongo>=4.5.0
+
+# Economic Data
+fredapi>=0.5.1
+pandas-datareader>=0.10.0
+
+# Async & Concurrency
+aiohttp>=3.8.0
+asyncio>=3.4.3
+
+# Utilities
+python-dotenv>=1.0.0
+schedule>=1.2.0
+pytz>=2023.3
+tqdm>=4.66.0
+
+# Development & Testing
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Data Processing
+openpyxl>=3.1.0
+xlrd>=2.0.1
+
+# Notification & Communication
+twilio>=8.10.0
+smtplib>=1.0.0
+
+# Caching & Performance
+redis>=5.0.0
+joblib>=1.3.0
+
+# Configuration
+pyyaml>=6.0.1
+configparser>=6.0.0
