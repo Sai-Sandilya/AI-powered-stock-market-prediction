@@ -5,13 +5,26 @@ Handles all data retrieval tasks:
 - Provides unified DataFrame outputs for downstream processing
 """
 import yfinance as yf
-from alpha_vantage.timeseries import TimeSeries
-from nsepy import get_history
 import pandas as pd
 from datetime import datetime
 import time
 import requests
 from io import StringIO
+
+# Optional imports - only import if available
+try:
+    from alpha_vantage.timeseries import TimeSeries
+    ALPHA_VANTAGE_AVAILABLE = True
+except ImportError:
+    ALPHA_VANTAGE_AVAILABLE = False
+    print("Alpha Vantage not available - using yfinance only")
+
+try:
+    from nsepy import get_history
+    NSEPY_AVAILABLE = True
+except ImportError:
+    NSEPY_AVAILABLE = False
+    print("NSEpy not available - using yfinance only")
 
 def fetch_yfinance_with_retry(ticker: str, start: str, end: str, max_retries: int = 3) -> pd.DataFrame:
     """Fetch data from yfinance with retry logic and multiple methods"""
@@ -197,6 +210,9 @@ def create_sample_data(ticker: str, start: str, end: str) -> pd.DataFrame:
     return df
 
 def fetch_alpha_vantage(symbol: str, api_key: str, outputsize: str = 'full') -> pd.DataFrame:
+    if not ALPHA_VANTAGE_AVAILABLE:
+        raise ImportError("Alpha Vantage is not available. Install alpha_vantage package.")
+    
     ts = TimeSeries(key=api_key, output_format='pandas')
     data, meta_data = ts.get_daily(symbol=symbol, outputsize=outputsize)
     if data is None or data.empty:
@@ -212,6 +228,9 @@ def fetch_alpha_vantage(symbol: str, api_key: str, outputsize: str = 'full') -> 
     return data
 
 def fetch_nsepy(symbol: str, start: str, end: str) -> pd.DataFrame:
+    if not NSEPY_AVAILABLE:
+        raise ImportError("NSEpy is not available. Install nsepy package.")
+    
     df = get_history(symbol=symbol, start=pd.to_datetime(start), end=pd.to_datetime(end))
     if df is None or df.empty:
         raise ValueError(f"No data found for symbol {symbol}")
