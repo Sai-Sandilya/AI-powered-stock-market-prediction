@@ -1060,136 +1060,135 @@ if st.sidebar.button("Analyze") or symbol:
                         # Initialize enhanced training system
                         if not ENHANCED_TRAINING_AVAILABLE:
                             st.error("❌ Enhanced training system not available. Please ensure all dependencies are installed.")
-                            return
-                        
-                        training_system = EnhancedTrainingSystem(
-                            symbol=training_symbol,
-                            start_date=training_start_date.strftime('%Y-%m-%d'),
-                            end_date=training_end_date.strftime('%Y-%m-%d'),
-                            initial_capital=initial_capital
-                        )
-                        
-                        # Create progress bar
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        # Step 1: Fetch and prepare data
-                        status_text.text("📊 Fetching and preparing data...")
-                        df = training_system.fetch_and_prepare_data()
-                        progress_bar.progress(20)
-                        
-                        # Step 2: Create enhanced features
-                        status_text.text("🔧 Creating enhanced features...")
-                        featured_df = training_system.create_enhanced_features(df)
-                        progress_bar.progress(40)
-                        
-                        # Step 3: Optimize hyperparameters (if enabled)
-                        if run_optimization:
-                            status_text.text("🎯 Running hyperparameter optimization...")
-                            optimization_results = training_system.optimize_hyperparameters(featured_df)
-                            progress_bar.progress(60)
-                            
-                            # Display optimization results
-                            st.subheader("📊 Optimization Results")
-                            if optimization_results:
-                                best_params = optimization_results.get('best_params', {})
-                                best_value = optimization_results.get('best_value', 0)
-                                
-                                st.success(f"✅ Best MAPE: {best_value:.2f}%")
-                                st.write("**Best Parameters:**")
-                                for param, value in best_params.items():
-                                    st.write(f"- {param}: {value}")
-                        
-                        # Step 4: Train model
-                        status_text.text("🤖 Training enhanced LSTM model...")
-                        model, scaler = training_system.train_enhanced_model(featured_df)
-                        progress_bar.progress(80)
-                        
-                        # Step 5: Evaluate performance
-                        status_text.text("📊 Evaluating system performance...")
-                        performance = training_system.evaluate_system_performance(featured_df)
-                        progress_bar.progress(100)
-                        
-                        # Display results
-                        st.success("✅ Enhanced training completed successfully!")
-                        
-                        # Training metrics
-                        st.subheader("📈 Training Results")
-                        
-                        if performance and 'backtest_results' in performance:
-                            backtest_results = performance['backtest_results']
-                            
-                            col1, col2, col3, col4 = st.columns(4)
-                            
-                            with col1:
-                                st.metric(
-                                    "MAPE",
-                                    f"{backtest_results.get('mape', 0):.2f}%"
-                                )
-                            
-                            with col2:
-                                st.metric(
-                                    "Directional Accuracy",
-                                    f"{backtest_results.get('directional_accuracy', 0):.2f}%"
-                                )
-                            
-                            with col3:
-                                st.metric(
-                                    "Cumulative Return",
-                                    f"{backtest_results.get('cumulative_return', 0):.2f}%"
-                                )
-                            
-                            with col4:
-                                st.metric(
-                                    "Sharpe Ratio",
-                                    f"{backtest_results.get('sharpe_ratio', 0):.2f}"
-                                )
-                        
-                        # Model information
-                        st.subheader("🤖 Model Information")
-                        
-                        if performance and 'model_info' in performance:
-                            model_info = performance['model_info']
-                            
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                st.write(f"**Model Type:** {model_info.get('model_type', 'Enhanced LSTM')}")
-                                st.write(f"**Features Used:** {model_info.get('features_used', 0)}")
-                                st.write(f"**Data Points:** {model_info.get('data_points', 0)}")
-                            
-                            with col2:
-                                st.write(f"**Training Period:** {training_start_date} to {training_end_date}")
-                                st.write(f"**Symbol:** {training_symbol}")
-                                st.write(f"**Initial Capital:** ${initial_capital:,}")
-                        
-                        # Save system state
-                        if save_model:
-                            training_system.save_system_state()
-                            st.success("💾 Model and system state saved successfully!")
-                        
-                        # Export results
-                        if export_results and performance:
-                            st.subheader("💾 Export Results")
-                            
-                            # Create results summary
-                            results_summary = {
-                                'symbol': training_symbol,
-                                'training_period': f"{training_start_date} to {training_end_date}",
-                                'performance_metrics': performance.get('backtest_results', {}),
-                                'model_info': performance.get('model_info', {}),
-                                'training_date': datetime.now().isoformat()
-                            }
-                            
-                            # Export as JSON
-                            import json
-                            json_data = json.dumps(results_summary, indent=2)
-                            st.download_button(
-                                label="📥 Download Results JSON",
-                                data=json_data,
-                                file_name=f"{training_symbol}_enhanced_training_results.json",
-                                mime="application/json"
+                        else:
+                            training_system = EnhancedTrainingSystem(
+                                symbol=training_symbol,
+                                start_date=training_start_date.strftime('%Y-%m-%d'),
+                                end_date=training_end_date.strftime('%Y-%m-%d'),
+                                initial_capital=initial_capital
                             )
+                            
+                            # Create progress bar
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Step 1: Fetch and prepare data
+                            status_text.text("📊 Fetching and preparing data...")
+                            df = training_system.fetch_and_prepare_data()
+                            progress_bar.progress(20)
+                            
+                            # Step 2: Create enhanced features
+                            status_text.text("🔧 Creating enhanced features...")
+                            featured_df = training_system.create_enhanced_features(df)
+                            progress_bar.progress(40)
+                            
+                            # Step 3: Optimize hyperparameters (if enabled)
+                            if run_optimization:
+                                status_text.text("🎯 Running hyperparameter optimization...")
+                                optimization_results = training_system.optimize_hyperparameters(featured_df)
+                                progress_bar.progress(60)
+                                
+                                # Display optimization results
+                                st.subheader("📊 Optimization Results")
+                                if optimization_results:
+                                    best_params = optimization_results.get('best_params', {})
+                                    best_value = optimization_results.get('best_value', 0)
+                                    
+                                    st.success(f"✅ Best MAPE: {best_value:.2f}%")
+                                    st.write("**Best Parameters:**")
+                                    for param, value in best_params.items():
+                                        st.write(f"- {param}: {value}")
+                            
+                            # Step 4: Train model
+                            status_text.text("🤖 Training enhanced LSTM model...")
+                            model, scaler = training_system.train_enhanced_model(featured_df)
+                            progress_bar.progress(80)
+                            
+                            # Step 5: Evaluate performance
+                            status_text.text("📊 Evaluating system performance...")
+                            performance = training_system.evaluate_system_performance(featured_df)
+                            progress_bar.progress(100)
+                            
+                            # Display results
+                            st.success("✅ Enhanced training completed successfully!")
+                            
+                            # Training metrics
+                            st.subheader("📈 Training Results")
+                            
+                            if performance and 'backtest_results' in performance:
+                                backtest_results = performance['backtest_results']
+                                
+                                col1, col2, col3, col4 = st.columns(4)
+                                
+                                with col1:
+                                    st.metric(
+                                        "MAPE",
+                                        f"{backtest_results.get('mape', 0):.2f}%"
+                                    )
+                                
+                                with col2:
+                                    st.metric(
+                                        "Directional Accuracy",
+                                        f"{backtest_results.get('directional_accuracy', 0):.2f}%"
+                                    )
+                                
+                                with col3:
+                                    st.metric(
+                                        "Cumulative Return",
+                                        f"{backtest_results.get('cumulative_return', 0):.2f}%"
+                                    )
+                                
+                                with col4:
+                                    st.metric(
+                                        "Sharpe Ratio",
+                                        f"{backtest_results.get('sharpe_ratio', 0):.2f}"
+                                    )
+                            
+                            # Model information
+                            st.subheader("🤖 Model Information")
+                            
+                            if performance and 'model_info' in performance:
+                                model_info = performance['model_info']
+                                
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.write(f"**Model Type:** {model_info.get('model_type', 'Enhanced LSTM')}")
+                                    st.write(f"**Features Used:** {model_info.get('features_used', 0)}")
+                                    st.write(f"**Data Points:** {model_info.get('data_points', 0)}")
+                                
+                                with col2:
+                                    st.write(f"**Training Period:** {training_start_date} to {training_end_date}")
+                                    st.write(f"**Symbol:** {training_symbol}")
+                                    st.write(f"**Initial Capital:** ${initial_capital:,}")
+                            
+                            # Save system state
+                            if save_model:
+                                training_system.save_system_state()
+                                st.success("💾 Model and system state saved successfully!")
+                            
+                            # Export results
+                            if export_results and performance:
+                                st.subheader("💾 Export Results")
+                                
+                                # Create results summary
+                                results_summary = {
+                                    'symbol': training_symbol,
+                                    'training_period': f"{training_start_date} to {training_end_date}",
+                                    'performance_metrics': performance.get('backtest_results', {}),
+                                    'model_info': performance.get('model_info', {}),
+                                    'training_date': datetime.now().isoformat()
+                                }
+                                
+                                # Export as JSON
+                                import json
+                                json_data = json.dumps(results_summary, indent=2)
+                                st.download_button(
+                                    label="📥 Download Results JSON",
+                                    data=json_data,
+                                    file_name=f"{training_symbol}_enhanced_training_results.json",
+                                    mime="application/json"
+                                )
                         
                     except Exception as e:
                         st.error(f"❌ Error during enhanced training: {str(e)}")
@@ -1727,18 +1726,17 @@ if st.sidebar.button("Analyze") or symbol:
                         # Initialize macro indicators fetcher
                         if not MACRO_INDICATORS_AVAILABLE:
                             st.error("❌ Macro indicators module not available. Please ensure all dependencies are installed.")
-                            return
-                        
-                        macro_fetcher = MacroIndicators()
-                        
-                        # Calculate date range
-                        years_map = {"1 Year": 1, "2 Years": 2, "5 Years": 5, "10 Years": 10}
-                        years = years_map[date_range]
-                        start_date_macro = (datetime.now() - timedelta(days=365*years)).strftime('%Y-%m-%d')
-                        end_date_macro = datetime.now().strftime('%Y-%m-%d')
-                        
-                        # Fetch macro data
-                        macro_data = macro_fetcher.get_macro_indicators(start_date_macro, end_date_macro)
+                        else:
+                            macro_fetcher = MacroIndicators()
+                            
+                            # Calculate date range
+                            years_map = {"1 Year": 1, "2 Years": 2, "5 Years": 5, "10 Years": 10}
+                            years = years_map[date_range]
+                            start_date_macro = (datetime.now() - timedelta(days=365*years)).strftime('%Y-%m-%d')
+                            end_date_macro = datetime.now().strftime('%Y-%m-%d')
+                            
+                            # Fetch macro data
+                            macro_data = macro_fetcher.get_macro_indicators(start_date_macro, end_date_macro)
                         
                         if macro_data:
                             # Prepare stock data for the same period
