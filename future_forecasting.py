@@ -16,12 +16,29 @@ import warnings
 from typing import Dict, List, Optional, Tuple, Union
 import joblib
 import os
-from tensorflow.keras.models import load_model
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+# Optional TensorFlow import
+try:
+    from tensorflow.keras.models import load_model
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
+    print("⚠️ TensorFlow not available. ML model features will be disabled.")
 
 # Import our modules
 from data_ingestion import fetch_yfinance
 from feature_engineering import get_comprehensive_features, add_technical_indicators
-from macro_indicators import MacroIndicators
+
+# Optional macro indicators import
+try:
+    from macro_indicators import MacroIndicators
+    MACRO_INDICATORS_AVAILABLE = True
+except ImportError:
+    MACRO_INDICATORS_AVAILABLE = False
+    print("⚠️ Macro indicators not available.")
 
 warnings.filterwarnings('ignore')
 
@@ -60,12 +77,16 @@ class FutureForecaster:
     
     def load_model(self, model_path: str):
         """Load a trained model with robust error handling."""
+        if not TENSORFLOW_AVAILABLE:
+            print(f"⚠️ TensorFlow not available, cannot load model from {model_path}")
+            self.model = None
+            return
+            
         try:
             if model_path.endswith('.h5'):
                 # Fix Keras compatibility issues
                 try:
                     # First try normal loading
-                    from tensorflow.keras.models import load_model
                     self.model = load_model(model_path, compile=False)  # Skip compilation to avoid 'mse' errors
                     # Recompile with compatible loss function
                     from tensorflow.keras.optimizers import Adam
@@ -133,6 +154,11 @@ class FutureForecaster:
         Create a sample LSTM model for demonstration.
         In production, use your actual trained model.
         """
+        if not TENSORFLOW_AVAILABLE:
+            print("⚠️ TensorFlow not available. Using dummy model for demonstration.")
+            self.model = DummyModel()
+            return
+            
         try:
             from tensorflow.keras.models import Sequential
             from tensorflow.keras.layers import LSTM, Dense, Dropout
@@ -151,8 +177,8 @@ class FutureForecaster:
             self.model = model
             print("✅ Sample LSTM model created")
             
-        except ImportError:
-            print("⚠️ TensorFlow not available. Using dummy model for demonstration.")
+        except Exception as e:
+            print(f"⚠️ Error creating TensorFlow model: {e}. Using dummy model.")
             self.model = DummyModel()
     
     def forecast_macro_features(self, macro_data: Dict[str, pd.DataFrame], 
@@ -286,7 +312,7 @@ class FutureForecaster:
         
         # Forecast macro features if needed
         macro_forecast = None
-        if include_macro:
+        if include_macro and MACRO_INDICATORS_AVAILABLE:
             macro = MacroIndicators()
             try:
                 macro_data = macro.load_macro_data('data')
@@ -308,6 +334,8 @@ class FutureForecaster:
                 print(f"✅ Forecasted {len(macro_forecast)} macro indicators")
             except Exception as e:
                 print(f"⚠️ Macro forecasting failed: {e}")
+        elif include_macro and not MACRO_INDICATORS_AVAILABLE:
+            print("⚠️ Macro indicators not available, skipping macro features")
         
         # Initialize forecasting
         future_predictions = []
