@@ -9,8 +9,15 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import time
-from textblob import TextBlob
 import re
+
+# Optional TextBlob import for sentiment analysis
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TEXTBLOB_AVAILABLE = False
+    print("⚠️ TextBlob not available. Using keyword-based sentiment analysis only.")
 
 # API Keys
 NEWSAPI_KEY = "3f4e25357c374ad1b38416e5a3174433"
@@ -393,12 +400,14 @@ class NewsSentimentAnalyzer:
         description = str(description) if description else ''
         text = f"{title} {description}".lower()
         
-        # TextBlob sentiment
-        try:
-            blob = TextBlob(text)
-            textblob_score = blob.sentiment.polarity
-        except:
-            textblob_score = 0.0
+        # TextBlob sentiment (if available)
+        textblob_score = 0.0
+        if TEXTBLOB_AVAILABLE:
+            try:
+                blob = TextBlob(text)
+                textblob_score = blob.sentiment.polarity
+            except:
+                textblob_score = 0.0
         
         # Keyword-based sentiment
         positive_count = sum(1 for word in self.positive_keywords if word in text)
@@ -409,8 +418,11 @@ class NewsSentimentAnalyzer:
         else:
             keyword_score = (positive_count - negative_count) / (positive_count + negative_count)
         
-        # Combined score
-        return (textblob_score + keyword_score) / 2
+        # Combined score - if TextBlob is available, use both; otherwise, just keywords
+        if TEXTBLOB_AVAILABLE:
+            return (textblob_score + keyword_score) / 2
+        else:
+            return keyword_score
     
     def _interpret_sentiment(self, sentiment: float) -> Dict:
         """Interpret sentiment score."""
