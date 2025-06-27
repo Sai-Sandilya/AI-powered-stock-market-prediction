@@ -817,39 +817,81 @@ if st.sidebar.button("Analyze") or symbol:
                                 st.error("❌ Invalid forecast data")
                                 fore_clean = pd.DataFrame()
                             
-                            # 3. Create chart using matplotlib for guaranteed reliability
+                            # 3. Create chart using Plotly (matplotlib alternative)
                             if not hist_clean.empty and not fore_clean.empty:
-                                import matplotlib.pyplot as plt
-                                import matplotlib.dates as mdates
-                                
-                                # Create matplotlib figure
-                                fig, ax = plt.subplots(figsize=(14, 8))
-                                
-                                # Plot historical data
-                                ax.plot(hist_clean['Date'], hist_clean['Price'], 
-                                       label='Historical', color='#1f77b4', linewidth=2, alpha=0.8)
-                                
-                                # Plot forecast data
-                                ax.plot(fore_clean['Date'], fore_clean['Price'], 
-                                       label='Forecast', color='#ff7f0e', linewidth=2, linestyle='--', alpha=0.8)
-                                
-                                # Formatting
-                                ax.set_xlabel('Date', fontsize=12)
-                                ax.set_ylabel('Price ($)', fontsize=12)
-                                ax.set_title(f"{forecast_symbol} Price Forecast ({forecast_horizon[0]})", fontsize=14, fontweight='bold')
-                                ax.legend(fontsize=12)
-                                ax.grid(True, alpha=0.3)
-                                
-                                # Format x-axis dates
-                                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-                                ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-                                plt.xticks(rotation=45)
-                                
-                                # Adjust layout to prevent label cutoff
-                                plt.tight_layout()
-                                
-                                # Display the matplotlib chart in Streamlit
-                                st.pyplot(fig)
+                                try:
+                                    # Try matplotlib first (if available)
+                                    import matplotlib.pyplot as plt
+                                    import matplotlib.dates as mdates
+                                    
+                                    # Create matplotlib figure
+                                    fig, ax = plt.subplots(figsize=(14, 8))
+                                    
+                                    # Plot historical data
+                                    ax.plot(hist_clean['Date'], hist_clean['Price'], 
+                                           label='Historical', color='#1f77b4', linewidth=2, alpha=0.8)
+                                    
+                                    # Plot forecast data
+                                    ax.plot(fore_clean['Date'], fore_clean['Price'], 
+                                           label='Forecast', color='#ff7f0e', linewidth=2, linestyle='--', alpha=0.8)
+                                    
+                                    # Formatting
+                                    ax.set_xlabel('Date', fontsize=12)
+                                    ax.set_ylabel('Price ($)', fontsize=12)
+                                    ax.set_title(f"{forecast_symbol} Price Forecast ({forecast_horizon[0]})", fontsize=14, fontweight='bold')
+                                    ax.legend(fontsize=12)
+                                    ax.grid(True, alpha=0.3)
+                                    
+                                    # Format x-axis dates
+                                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+                                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+                                    plt.xticks(rotation=45)
+                                    
+                                    # Adjust layout to prevent label cutoff
+                                    plt.tight_layout()
+                                    
+                                    # Display the matplotlib chart in Streamlit
+                                    st.pyplot(fig)
+                                    
+                                except ImportError:
+                                    # Fallback to Plotly if matplotlib not available
+                                    st.info("📊 Using Plotly charts (matplotlib not available)")
+                                    
+                                    # Create Plotly figure
+                                    fig = go.Figure()
+                                    
+                                    # Add historical data
+                                    fig.add_trace(go.Scatter(
+                                        x=hist_clean['Date'],
+                                        y=hist_clean['Price'],
+                                        mode='lines',
+                                        name='Historical',
+                                        line=dict(color='#1f77b4', width=2),
+                                        opacity=0.8
+                                    ))
+                                    
+                                    # Add forecast data
+                                    fig.add_trace(go.Scatter(
+                                        x=fore_clean['Date'],
+                                        y=fore_clean['Price'],
+                                        mode='lines',
+                                        name='Forecast',
+                                        line=dict(color='#ff7f0e', width=2, dash='dash'),
+                                        opacity=0.8
+                                    ))
+                                    
+                                    # Update layout
+                                    fig.update_layout(
+                                        title=f"{forecast_symbol} Price Forecast ({forecast_horizon[0]})",
+                                        xaxis_title="Date",
+                                        yaxis_title="Price ($)",
+                                        hovermode='x unified',
+                                        height=500,
+                                        showlegend=True
+                                    )
+                                    
+                                    # Display the Plotly chart
+                                    st.plotly_chart(fig, use_container_width=True)
                                 
                                 # Debug: Show what we're actually plotting
                                 st.write(f"**📊 Chart Data Summary:**")
