@@ -20,23 +20,47 @@ import os
 try:
     from train_enhanced_system import EnhancedTrainingSystem
     ENHANCED_TRAINING_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     ENHANCED_TRAINING_AVAILABLE = False
-    print("Enhanced training system not available")
+    print(f"Enhanced training system not available: {e}")
 
 try:
     from backtesting import Backtester
     BACKTESTING_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     BACKTESTING_AVAILABLE = False
-    print("Backtesting module not available")
+    print(f"Backtesting module not available: {e}")
 
 try:
     from macro_indicators import MacroIndicators
     MACRO_INDICATORS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     MACRO_INDICATORS_AVAILABLE = False
-    print("Macro indicators module not available")
+    print(f"Macro indicators module not available: {e}")
+
+# Check for TensorFlow availability
+try:
+    import tensorflow as tf
+    TENSORFLOW_AVAILABLE = True
+    print("✅ TensorFlow is available")
+except ImportError as e:
+    TENSORFLOW_AVAILABLE = False
+    print(f"⚠️ TensorFlow not available: {e}")
+
+# Check for additional ML libraries
+try:
+    import optuna
+    OPTUNA_AVAILABLE = True
+except ImportError:
+    OPTUNA_AVAILABLE = False
+    print("⚠️ Optuna not available - hyperparameter tuning limited")
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    print("⚠️ Matplotlib not available - some visualizations may be limited")
 
 st.set_page_config(page_title="Stock Predictor Enhanced Dashboard", layout="wide")
 st.title("📈 Advanced Stock Predictor Dashboard with Macro Analysis")
