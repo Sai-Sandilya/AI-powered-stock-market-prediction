@@ -270,8 +270,15 @@ class FutureForecaster:
     
     def reset_forecast_state(self):
         """Reset forecasting state for new prediction."""
-        if hasattr(self, 'previous_returns'):
-            delattr(self, 'previous_returns')
+        # Reset all stateful variables for clean forecasts
+        state_vars = [
+            'previous_returns', 'current_regime', 'regime_duration', 'regime_strength',
+            'technical_signal_age', 'recent_volatility', 'momentum_tracker'
+        ]
+        
+        for var in state_vars:
+            if hasattr(self, var):
+                delattr(self, var)
 
     def forecast_future(self, symbol: str, forecast_days: int = 504, 
                        include_macro: bool = True, sentiment_score: Optional[float] = None) -> pd.DataFrame:
@@ -368,42 +375,73 @@ class FutureForecaster:
                     deterministic=True
                 )
                 
-                # Apply professional mean reversion and drift control
+                # Apply professional drift control with adaptive bounds
                 if i > 0:
-                    # Calculate expected price based on conservative growth model
+                    # Calculate expected price based on realistic growth model
                     days_elapsed = i + 1
-                    annual_growth = 0.08 if len(future_dates) > 180 else 0.10  # Conservative for long-term
+                    
+                    # More realistic annual growth expectations
+                    if len(future_dates) > 400:    # 1.5+ years
+                        annual_growth = 0.06  # 6% annual
+                    elif len(future_dates) > 252:  # 1+ year
+                        annual_growth = 0.08  # 8% annual
+                    else:  # Short-term
+                        annual_growth = 0.10  # 10% annual
+                        
                     expected_price = initial_price * (1 + annual_growth) ** (days_elapsed / 252)
                     
-                    # Apply strong mean reversion to prevent extreme deviations
+                    # Apply adaptive mean reversion based on forecast length
                     current_deviation = (predicted_price - expected_price) / expected_price
                     
-                    # Professional bounds: ±30% maximum deviation from expected path
-                    max_deviation = 0.30
+                    # More generous bounds for long-term forecasts
+                    if len(future_dates) > 400:    # 1.5+ years: very generous
+                        max_deviation = 0.60  # ±60% deviation allowed
+                    elif len(future_dates) > 252:  # 1+ year: generous
+                        max_deviation = 0.50  # ±50% deviation allowed
+                    else:  # Short-term: normal bounds
+                        max_deviation = 0.30  # ±30% deviation allowed
+                        
                     if current_deviation > max_deviation:
                         predicted_price = expected_price * (1 + max_deviation)
                     elif current_deviation < -max_deviation:
                         predicted_price = expected_price * (1 - max_deviation)
                     
-                    # Additional smoothing for longer forecasts
-                    if len(future_dates) > 90:
-                        # Blend with expected price to prevent extreme compounding
-                        blend_factor = min(0.3, i / len(future_dates))  # Increase smoothing over time
+                    # Lighter smoothing for long-term forecasts to preserve volatility
+                    if len(future_dates) > 252:  # Long-term: minimal smoothing
+                        blend_factor = min(0.1, i / (len(future_dates) * 2))  # Very light smoothing
+                        predicted_price = predicted_price * (1 - blend_factor) + expected_price * blend_factor
+                    elif len(future_dates) > 90:  # Medium-term: moderate smoothing
+                        blend_factor = min(0.2, i / len(future_dates))
                         predicted_price = predicted_price * (1 - blend_factor) + expected_price * blend_factor
                 
                 # Ensure positive price
                 predicted_price = max(predicted_price, current_price * 0.5)
                 
-                # Apply realistic bounds check to prevent extreme deviations
+                # Final safety bounds (very generous for long-term)
                 progress_ratio = (i + 1) / len(future_dates)
-                expected_price_at_this_point = initial_price * (1.12 ** (progress_ratio * forecast_days / 252))
                 
-                # Allow reasonable deviation but prevent extreme swings
-                max_deviation = 0.4  # Allow ±40% deviation from expected trend
+                # More realistic growth expectations for bounds
+                if len(future_dates) > 400:    # 1.5+ years
+                    base_growth = 1.06  # 6% annual
+                elif len(future_dates) > 252:  # 1+ year  
+                    base_growth = 1.08  # 8% annual
+                else:  # Short-term
+                    base_growth = 1.12  # 12% annual
+                    
+                expected_price_at_this_point = initial_price * (base_growth ** (progress_ratio * forecast_days / 252))
+                
+                # Very generous bounds for long-term forecasts
+                if len(future_dates) > 400:    # 1.5+ years: very generous final bounds
+                    max_deviation = 0.80  # ±80% deviation from expected trend
+                elif len(future_dates) > 252:  # 1+ year: generous final bounds
+                    max_deviation = 0.60  # ±60% deviation from expected trend
+                else:  # Short-term: normal bounds
+                    max_deviation = 0.40  # ±40% deviation from expected trend
+                    
                 upper_bound = expected_price_at_this_point * (1 + max_deviation)
                 lower_bound = expected_price_at_this_point * (1 - max_deviation)
                 
-                # Apply bounds to prevent unrealistic forecasts
+                # Apply final safety bounds
                 if predicted_price > upper_bound:
                     predicted_price = upper_bound
                 elif predicted_price < lower_bound:
@@ -524,38 +562,57 @@ class FutureForecaster:
         else:
             hist_volatility = 0.25  # Default 25% annualized volatility
         
-        # Professional volatility modeling with proper risk controls
+        # Professional volatility modeling: Adaptive and context-aware
         base_daily_volatility = max(hist_volatility / np.sqrt(252), 0.015)  # Professional minimum
         
-        # Professional volatility scaling for forecast horizon
-        if total_steps > 252:  # 1+ year: very conservative
-            vol_scale = 0.4
-        elif total_steps > 126:  # 6+ months: moderate
-            vol_scale = 0.6
-        elif total_steps > 63:   # 3+ months: slight reduction
-            vol_scale = 0.8
-        else:  # Short term: normal
-            vol_scale = 1.0
+        # Volatility adapts to market conditions (not just forecast length)
+        volatility_regime_factor = 1.0
         
-        # Controlled volatility clustering (professional approach)
-        vol_randomness = np.random.lognormal(0, 0.05 * vol_scale)  # Much more controlled
+        # Adjust volatility based on technical conditions
+        if rsi_zone in ["extreme_overbought", "extreme_oversold"]:
+            volatility_regime_factor = 1.4  # Higher volatility at extremes
+        elif rsi_zone in ["overbought", "oversold"]:
+            volatility_regime_factor = 1.2  # Moderately higher volatility
         
-        # Rare stress events only (professional risk management)
-        if np.random.random() < 0.005:  # 0.5% chance only
-            vol_randomness *= np.random.uniform(1.1, 1.3)  # Moderate stress
+        # Professional volatility clustering (GARCH-like)
+        if hasattr(self, 'recent_volatility'):
+            # Volatility persistence (high vol tends to follow high vol)
+            vol_persistence = 0.7
+            vol_mean_reversion = 0.3
+            vol_innovation = np.random.lognormal(0, 0.08)
+            
+            self.recent_volatility = (vol_persistence * self.recent_volatility + 
+                                    vol_mean_reversion * base_daily_volatility + 
+                                    vol_innovation * base_daily_volatility * 0.1)
+        else:
+            self.recent_volatility = base_daily_volatility
+            
+        # Professional stress event modeling
+        stress_probability = 0.01  # 1% chance daily
+        if np.random.random() < stress_probability:
+            stress_factor = np.random.uniform(1.5, 2.5)  # Professional stress range
+            self.recent_volatility *= stress_factor
+            
+        daily_volatility = self.recent_volatility * volatility_regime_factor
         
-        daily_volatility = base_daily_volatility * vol_randomness * vol_scale
+        # Professional long-term trend modeling with stability
+        # For 1-2 year forecasts, we need consistent but realistic growth
         
-        # Enhanced trend modeling with realistic long-term expectations
-        trend_randomness = np.random.normal(0.0001, 0.0003)  # Maintain some trend variation
-        
-        # Conservative but realistic annual returns based on forecast length
-        if total_steps > 300:    # 1+ years: conservative long-term growth
-            base_annual_return = 0.07   # 7% annual
-        elif total_steps > 180:  # 6+ months: moderate growth
+        # Stable annual returns based on forecast length (better for long-term accuracy)
+        if total_steps > 400:    # 1.5+ years: very conservative
+            base_annual_return = 0.06   # 6% annual
+        elif total_steps > 252:  # 1+ year: conservative
             base_annual_return = 0.08   # 8% annual  
-        else:                    # Short term: normal growth
+        elif total_steps > 180:  # 6+ months: moderate
             base_annual_return = 0.10   # 10% annual
+        else:                    # Short term: normal
+            base_annual_return = 0.12   # 12% annual
+            
+        # Stable trend with minimal random variation for long-term accuracy
+        if total_steps > 252:  # Long-term: very stable
+            trend_randomness = np.random.normal(0, 0.0002)  # Minimal variation
+        else:  # Short-term: more variation
+            trend_randomness = np.random.normal(0, 0.0005)
             
         base_trend = (base_annual_return / 252) + trend_randomness
         
@@ -577,123 +634,358 @@ class FutureForecaster:
             # Add sentiment to base trend
             base_trend += sentiment_influence
         
-        # Professional cyclical modeling (controlled amplitudes)
-        # Very subtle cyclical components for professional forecasting
-        if total_steps <= 90:  # Only for short-term
-            # Monthly cycle (minimal)
-            phase_shift_1 = np.random.uniform(0, 2 * np.pi)
-            short_cycle = np.random.uniform(0.0001, 0.0003) * np.sin(2 * np.pi * step / 21 + phase_shift_1)
-            
-            # Weekly variation (minimal)
-            noise_cycle_1 = np.random.uniform(-0.0002, 0.0002) * np.sin(2 * np.pi * step / 5)
+        # REMOVE ARTIFICIAL CYCLES - Real markets don't follow predictable sine waves!
+        # Professional approach: Use only random market factors, no artificial patterns
+        
+        # Random market microstructure (NOT predictable cycles)
+        microstructure_component = np.random.normal(0, 0.0001)  # Small random component
+        
+        # Random sector momentum (NOT cyclical)
+        if np.random.random() < 0.1:  # 10% chance of sector momentum
+            sector_momentum = np.random.normal(0, 0.0003) * (1 if np.random.random() > 0.5 else -1)
         else:
-            short_cycle = 0.0
-            noise_cycle_1 = 0.0
+            sector_momentum = 0
+            
+        # Random institutional flow (NOT predictable)
+        if np.random.random() < 0.05:  # 5% chance of institutional flow
+            institutional_flow = np.random.normal(0, 0.0005) * (1 if np.random.random() > 0.5 else -1)
+        else:
+            institutional_flow = 0
+            
+        # Combine random factors (NO artificial cycles)
+        random_market_factors = microstructure_component + sector_momentum + institutional_flow
         
-        # No medium/long-term cycles for professional stability
-        medium_cycle = 0.0
-        long_cycle = 0.0
-        noise_cycle_2 = 0.0
+        # Mean reversion: Adaptive based on forecast horizon
+        # Long-term forecasts need weaker mean reversion for realistic growth
         
-        # Mean reversion component (weaker)
-        # If price has moved too far from moving average, add reversion force
         ma_20 = last_row.get('MA_20', current_price)
-        deviation_from_ma = (current_price - ma_20) / ma_20
-        mean_reversion = -0.05 * deviation_from_ma  # Weaker mean reversion
+        ma_50 = last_row.get('MA_50', current_price) 
+        ma_200 = last_row.get('MA_200', current_price)
         
-        # Technical indicator momentum
+        # Calculate deviations from different timeframes
+        dev_20 = (current_price - ma_20) / ma_20
+        dev_50 = (current_price - ma_50) / ma_50
+        dev_200 = (current_price - ma_200) / ma_200
+        
+        # Adaptive mean reversion strength based on forecast length
+        if total_steps > 400:  # 1.5+ years: very weak reversion
+            short_strength = 0.05   # 5% reversion to MA_20
+            medium_strength = 0.03  # 3% reversion to MA_50
+            long_strength = 0.02    # 2% reversion to MA_200
+        elif total_steps > 252:  # 1+ year: weak reversion
+            short_strength = 0.08   # 8% reversion to MA_20
+            medium_strength = 0.05  # 5% reversion to MA_50
+            long_strength = 0.03    # 3% reversion to MA_200
+        elif total_steps > 180:  # 6+ months: moderate reversion
+            short_strength = 0.12   # 12% reversion to MA_20
+            medium_strength = 0.08  # 8% reversion to MA_50
+            long_strength = 0.05    # 5% reversion to MA_200
+        else:  # Short-term: normal reversion
+            short_strength = 0.20   # 20% reversion to MA_20
+            medium_strength = 0.12  # 12% reversion to MA_50
+            long_strength = 0.06    # 6% reversion to MA_200
+        
+        short_reversion = -short_strength * dev_20
+        medium_reversion = -medium_strength * dev_50
+        long_reversion = -long_strength * dev_200
+        
+        # Lighter dislocation adjustments for long-term forecasts
+        total_deviation = abs(dev_20) + abs(dev_50) + abs(dev_200)
+        if total_steps > 252:  # Long-term: minimal dislocation multipliers
+            if total_deviation > 0.20:  # Major dislocation
+                reversion_multiplier = 1.2
+            else:  # Normal range
+                reversion_multiplier = 1.0
+        else:  # Short-term: normal dislocation multipliers
+            if total_deviation > 0.15:  # Major dislocation
+                reversion_multiplier = 1.5
+            elif total_deviation > 0.08:  # Moderate dislocation
+                reversion_multiplier = 1.2
+            else:  # Normal range
+                reversion_multiplier = 1.0
+            
+        mean_reversion = (short_reversion + medium_reversion + long_reversion) * reversion_multiplier
+        
+        # Professional technical analysis: More nuanced and realistic
         rsi = last_row.get('RSI_14', 50)
         macd = last_row.get('MACD', 0)
+        macd_signal = last_row.get('MACD_Signal', 0)
         
-        # RSI-based adjustment
-        if rsi > 70:  # Overbought
-            rsi_adjustment = -0.002
-        elif rsi < 30:  # Oversold
-            rsi_adjustment = 0.002
+        # Professional RSI interpretation (less mechanical, more probabilistic)
+        rsi_zone = "neutral"
+        if rsi > 75:
+            rsi_zone = "extreme_overbought"
+        elif rsi > 65:
+            rsi_zone = "overbought"  
+        elif rsi < 25:
+            rsi_zone = "extreme_oversold"
+        elif rsi < 35:
+            rsi_zone = "oversold"
+            
+        # RSI effects with randomness (not guaranteed)
+        if rsi_zone == "extreme_overbought" and np.random.random() < 0.6:  # 60% chance
+            rsi_adjustment = np.random.normal(-0.008, 0.004)  # Variable negative impact
+        elif rsi_zone == "overbought" and np.random.random() < 0.4:  # 40% chance
+            rsi_adjustment = np.random.normal(-0.004, 0.002)
+        elif rsi_zone == "extreme_oversold" and np.random.random() < 0.6:  # 60% chance
+            rsi_adjustment = np.random.normal(0.008, 0.004)   # Variable positive impact
+        elif rsi_zone == "oversold" and np.random.random() < 0.4:  # 40% chance
+            rsi_adjustment = np.random.normal(0.004, 0.002)
         else:
             rsi_adjustment = 0
         
-        # MACD-based adjustment
-        macd_adjustment = np.clip(macd * 0.001, -0.005, 0.005)
+        # Professional MACD analysis (momentum with context)
+        macd_divergence = macd - macd_signal
+        macd_magnitude = abs(macd)
         
-        # Market regime detection (more balanced and realistic)
-        # Create natural market cycles instead of linear progression
-        regime_cycle = np.sin(2 * np.pi * step / 126)  # 6-month cycles
-        regime_noise = np.random.normal(0, 0.2)  # Add some randomness
+        # MACD signals are stronger when magnitude is higher
+        if macd_magnitude > 0.5:  # Strong MACD signal
+            signal_strength = "strong"
+        elif macd_magnitude > 0.2:  # Moderate signal
+            signal_strength = "moderate"
+        else:
+            signal_strength = "weak"
+            
+        # MACD effects with probability (not deterministic)
+        if signal_strength == "strong":
+            if macd_divergence > 0 and np.random.random() < 0.7:  # 70% chance
+                macd_adjustment = np.random.normal(0.006, 0.003)
+            elif macd_divergence < 0 and np.random.random() < 0.7:  # 70% chance
+                macd_adjustment = np.random.normal(-0.006, 0.003)
+            else:
+                macd_adjustment = 0
+        elif signal_strength == "moderate":
+            if macd_divergence > 0 and np.random.random() < 0.5:  # 50% chance
+                macd_adjustment = np.random.normal(0.003, 0.002)
+            elif macd_divergence < 0 and np.random.random() < 0.5:  # 50% chance
+                macd_adjustment = np.random.normal(-0.003, 0.002)
+            else:
+                macd_adjustment = 0
+        else:  # weak signal
+            macd_adjustment = 0
+            
+        # Technical signals fade over time (realistic decay)
+        if hasattr(self, 'technical_signal_age'):
+            self.technical_signal_age += 1
+            fade_factor = max(0.3, 1.0 - (self.technical_signal_age / 20))  # Fade over 20 days
+        else:
+            self.technical_signal_age = 0
+            fade_factor = 1.0
+            
+        rsi_adjustment *= fade_factor
+        macd_adjustment *= fade_factor
         
-        # More balanced regime trends
-        if regime_cycle > 0.5:  # Bull phase
-            regime_trend = 0.0003 + regime_noise * 0.0001
+        # Professional market regime: Based on actual market conditions, not artificial patterns
+        
+        # Initialize regime based on current market conditions
+        if not hasattr(self, 'current_regime'):
+            # Use current technical indicators to determine initial regime
+            current_rsi = last_row.get('RSI_14', 50)
+            current_ma_trend = 1 if current_price > last_row.get('MA_50', current_price) else 0
+            
+            # Professional regime initialization
+            if current_rsi > 60 and current_ma_trend:
+                self.current_regime = 'bull'
+            elif current_rsi < 40 and not current_ma_trend:
+                self.current_regime = 'bear'
+            else:
+                self.current_regime = 'sideways'
+                
+            self.regime_duration = 0
+            self.regime_strength = np.random.uniform(0.3, 0.8)  # Regime strength
+        
+        # Professional regime transitions based on market conditions
+        # Check for regime change triggers
+        regime_change_probability = 0.02  # 2% base chance
+        
+        # Adjust probability based on technical conditions
+        if rsi_zone in ["extreme_overbought", "extreme_oversold"]:
+            regime_change_probability *= 2.0  # Higher chance during extremes
+        
+        # Regime exhaustion (longer regimes more likely to change)
+        exhaustion_factor = min(2.0, 1.0 + self.regime_duration / 100)
+        regime_change_probability *= exhaustion_factor
+        
+        # Professional regime transition logic
+        if np.random.random() < regime_change_probability:
+            if self.current_regime == 'bull':
+                if rsi_zone in ["extreme_overbought", "overbought"]:
+                    self.current_regime = np.random.choice(['sideways', 'bear'], p=[0.7, 0.3])
+                else:
+                    self.current_regime = 'sideways'
+            elif self.current_regime == 'bear':
+                if rsi_zone in ["extreme_oversold", "oversold"]:
+                    self.current_regime = np.random.choice(['sideways', 'bull'], p=[0.6, 0.4])
+                else:
+                    self.current_regime = 'sideways'
+            else:  # sideways
+                if current_rsi > 55:
+                    self.current_regime = 'bull'
+                elif current_rsi < 45:
+                    self.current_regime = 'bear'
+                # else stay sideways
+                    
+            self.regime_duration = 0
+            self.regime_strength = np.random.uniform(0.3, 0.8)
+        else:
+            self.regime_duration += 1
+        
+        # Professional regime effects (adaptive strength)
+        base_regime_effect = 0.0001 * self.regime_strength
+        
+        if self.current_regime == 'bull':
+            regime_trend = base_regime_effect + np.random.normal(0, 0.00005)
             regime_volatility = 0.9
-        elif regime_cycle < -0.5:  # Bear phase (less frequent and severe)
-            regime_trend = -0.0001 + regime_noise * 0.0001
-            regime_volatility = 1.2
-        else:  # Sideways market
-            regime_trend = 0.0001 + regime_noise * 0.0001
+        elif self.current_regime == 'bear':
+            regime_trend = -base_regime_effect + np.random.normal(0, 0.00005)
+            regime_volatility = 1.3
+        else:  # sideways
+            regime_trend = np.random.normal(0, 0.00003)
             regime_volatility = 1.0
         
-        # Combine all factors with additional randomness
+        # Institutional factors: Reduced for long-term forecast stability
+        # Less noise for better long-term accuracy
+        
+        # Scale all institutional effects based on forecast horizon
+        if total_steps > 400:  # 1.5+ years: minimal institutional noise
+            inst_scale = 0.3
+        elif total_steps > 252:  # 1+ year: reduced institutional noise
+            inst_scale = 0.5
+        else:  # Short-term: normal institutional effects
+            inst_scale = 1.0
+        
+        # 1. Fundamental valuation effects (scaled down for long-term)
+        if self.current_regime == 'bull':
+            pe_effect = np.random.normal(0.0001, 0.0002) * inst_scale
+        elif self.current_regime == 'bear':
+            pe_effect = np.random.normal(-0.0001, 0.0002) * inst_scale
+        else:
+            pe_effect = np.random.normal(0, 0.0001) * inst_scale
+            
+        # 2. Sector rotation (less frequent for long-term)
+        sector_prob = 0.05 if total_steps > 252 else 0.1  # Less frequent for long-term
+        if np.random.random() < sector_prob:
+            if np.random.random() < 0.6:
+                sector_effect = np.random.normal(0.002, 0.001) * inst_scale
+            else:
+                sector_effect = np.random.normal(-0.002, 0.001) * inst_scale
+        else:
+            sector_effect = 0
+            
+        # 3. Liquidity effects (minimal for long-term)
+        if total_steps > 252:  # Long-term: minimal liquidity effects
+            liquidity_effect = 0
+        else:  # Short-term: normal liquidity effects
+            if np.random.random() < 0.05:
+                liquidity_effect = np.random.normal(-0.001, 0.002)
+            else:
+                liquidity_effect = 0
+            
+        # 4. Earnings effects (only for short-term forecasts)
+        if total_steps <= 180:  # Only for 6 months or less
+            days_to_earnings = step % 63
+            if days_to_earnings < 5:
+                earnings_effect = np.random.normal(0, 0.003) * inst_scale
+            elif days_to_earnings < 10:
+                earnings_effect = np.random.normal(0, 0.002) * inst_scale
+            else:
+                earnings_effect = 0
+        else:  # No earnings effects for long-term
+            earnings_effect = 0
+            
+        # 5. Market microstructure (minimal for long-term)
+        microstructure_noise = np.random.laplace(0, 0.0002) * inst_scale
+        
+        # Professional trend combination: Real market drivers only
         total_trend = (
-            base_trend + 
-            short_cycle + 
-            medium_cycle + 
-            long_cycle + 
-            noise_cycle_1 +
-            noise_cycle_2 +
-            mean_reversion + 
-            rsi_adjustment + 
-            macd_adjustment + 
-            regime_trend +
-            np.random.normal(0, 0.001)  # Pure random component
+            base_trend +                    # Core growth trend
+            random_market_factors +         # Random market forces (NO artificial cycles)
+            mean_reversion +               # Mean reversion forces
+            rsi_adjustment +               # Technical momentum
+            macd_adjustment +              # MACD signals
+            regime_trend +                 # Market regime effects
+            pe_effect +                    # Fundamental effects
+            sector_effect +                # Sector rotation
+            liquidity_effect +             # Liquidity events
+            earnings_effect +              # Earnings uncertainty
+            microstructure_noise +         # Market microstructure
+            np.random.normal(0, 0.0002 if total_steps > 252 else 0.0005)  # Pure randomness
         )
         
         # Adjust volatility by regime with more randomness
         adjusted_volatility = daily_volatility * regime_volatility * np.random.uniform(0.7, 1.5)
         
-        # Professional shock generation with strict risk controls
-        # Primary Gaussian shock (controlled magnitude)
-        random_shock_1 = np.random.normal(0, adjusted_volatility * 0.3)  # Much more controlled
+        # Professional shock generation: realistic daily moves with smart controls
+        # Primary Gaussian shock (realistic daily movement)
+        random_shock_1 = np.random.normal(0, adjusted_volatility * 0.6)  # Realistic daily moves
         
-        # Minimal fat-tail events (professional risk management)
-        if np.random.random() < 0.01:  # 1% chance only
-            random_shock_2 = np.random.laplace(0, adjusted_volatility * 0.05)  # Very small fat-tail
+        # Professional fat-tail events (markets do have these)
+        if np.random.random() < 0.05:  # 5% chance - realistic for daily events
+            random_shock_2 = np.random.laplace(0, adjusted_volatility * 0.15)  # Realistic fat-tail
         else:
             random_shock_2 = 0.0
         
-        # No uniform shock for professional modeling
-        combined_shock = random_shock_1 + random_shock_2
+        # Small uniform component for market microstructure
+        random_shock_3 = np.random.uniform(-adjusted_volatility, adjusted_volatility) * 0.1
         
-        # Professional shock limiting based on forecast horizon
-        if total_steps > 180:  # Long-term: very tight control
-            shock_limit = adjusted_volatility * 0.5
-        elif total_steps > 90:  # Medium-term: moderate control
-            shock_limit = adjusted_volatility * 0.8
-        else:  # Short-term: normal control
-            shock_limit = adjusted_volatility * 1.2
+        combined_shock = random_shock_1 + random_shock_2 + random_shock_3
         
-        # Apply shock limits
+        # Professional approach: allow normal daily moves, limit only extreme outliers
+        if total_steps > 180:  # Long-term: moderate limits
+            shock_limit = adjusted_volatility * 1.5  # Allow realistic daily moves
+        elif total_steps > 90:  # Medium-term: light limits
+            shock_limit = adjusted_volatility * 1.8
+        else:  # Short-term: normal limits
+            shock_limit = adjusted_volatility * 2.0
+        
+        # Apply professional shock limits (generous for realistic behavior)
         combined_shock = np.clip(combined_shock, -shock_limit, shock_limit)
         
         # Apply price change using enhanced geometric Brownian motion
         price_change = total_trend + combined_shock
         new_price = current_price * np.exp(price_change)
         
-        # Professional news event modeling (very conservative)
-        if total_steps <= 90:  # Only for short-term forecasts
-            news_probability = 0.008  # Very rare events only
-            if np.random.random() < news_probability:
-                # Professional-grade event impacts (minimal)
-                event_type = np.random.choice(['earnings', 'economic', 'technical'])
+        # Professional news/event modeling: Context-aware and realistic
+        base_news_probability = 0.015  # 1.5% daily chance
+        
+        # Adjust news probability based on market conditions
+        if self.current_regime == 'bear':
+            news_probability = base_news_probability * 1.5  # More news in bear markets
+        elif rsi_zone in ["extreme_overbought", "extreme_oversold"]:
+            news_probability = base_news_probability * 1.3  # More news at extremes
+        else:
+            news_probability = base_news_probability
+            
+        # Professional event generation
+        if np.random.random() < news_probability:
+            # Event type probabilities depend on market conditions
+            if self.current_regime == 'bear':
+                event_type = np.random.choice(['economic', 'company', 'technical'], p=[0.5, 0.3, 0.2])
+            else:
+                event_type = np.random.choice(['company', 'economic', 'technical'], p=[0.4, 0.35, 0.25])
+            
+            # Professional event impact modeling
+            if event_type == 'company':  # Company-specific news
+                # Earnings, guidance, product launches, etc.
+                impact_magnitude = np.random.lognormal(-2.5, 0.8)  # Realistic distribution
+                impact_direction = 1 if np.random.random() > 0.45 else -1  # Slight positive bias
+                jump_size = impact_direction * impact_magnitude * 0.01
                 
-                if event_type == 'earnings':
-                    jump_size = np.random.normal(0, 0.005)  # 0.5% max earnings impact
-                elif event_type == 'economic':
-                    jump_size = np.random.normal(0, 0.003)  # 0.3% economic impact
-                else:  # technical
-                    jump_size = np.random.normal(0, 0.002)  # 0.2% technical impact
-                    
-                new_price *= np.exp(jump_size)
-        # No news events for medium/long-term forecasts (professional approach)
+            elif event_type == 'economic':  # Economic/macro news
+                # Fed decisions, economic data, etc.
+                impact_magnitude = np.random.lognormal(-2.8, 0.6)  # Smaller but more frequent
+                impact_direction = 1 if np.random.random() > 0.5 else -1  # Neutral bias
+                jump_size = impact_direction * impact_magnitude * 0.01
+                
+            else:  # technical / other
+                # Technical breakouts, analyst changes, etc.
+                impact_magnitude = np.random.lognormal(-3.2, 0.5)  # Smallest impact
+                impact_direction = 1 if np.random.random() > 0.5 else -1
+                jump_size = impact_direction * impact_magnitude * 0.01
+            
+            # Apply the news impact
+            jump_size = np.clip(jump_size, -0.08, 0.08)  # Cap at ±8%
+            new_price *= np.exp(jump_size)
         
         # Professional gap modeling (minimal impact)
         if total_steps <= 63:  # Only for very short-term forecasts
@@ -702,39 +994,80 @@ class FutureForecaster:
                 new_price *= np.exp(gap_size)
         # No gaps for medium/long-term forecasts
         
-        # Add momentum/autocorrelation (trending behavior)
-        if hasattr(self, 'previous_returns') and len(self.previous_returns) > 0:
-            # Use recent returns to add momentum
-            recent_momentum = np.mean(self.previous_returns[-5:]) if len(self.previous_returns) >= 5 else 0
-            momentum_effect = recent_momentum * np.random.uniform(0.1, 0.3)  # Partial momentum carry-over
+        # Professional momentum modeling: Multi-timeframe and adaptive
+        if not hasattr(self, 'momentum_tracker'):
+            self.momentum_tracker = {
+                'short_momentum': 0.0,    # 3-day momentum
+                'medium_momentum': 0.0,   # 10-day momentum
+                'long_momentum': 0.0,     # 20-day momentum
+                'return_history': []
+            }
+        
+        # Calculate current return
+        current_return = np.log(new_price / current_price) if new_price > 0 and current_price > 0 else 0
+        self.momentum_tracker['return_history'].append(current_return)
+        
+        # Keep only recent history
+        if len(self.momentum_tracker['return_history']) > 25:
+            self.momentum_tracker['return_history'] = self.momentum_tracker['return_history'][-25:]
+        
+        # Update momentum metrics
+        if len(self.momentum_tracker['return_history']) >= 3:
+            self.momentum_tracker['short_momentum'] = np.mean(self.momentum_tracker['return_history'][-3:])
+        if len(self.momentum_tracker['return_history']) >= 10:
+            self.momentum_tracker['medium_momentum'] = np.mean(self.momentum_tracker['return_history'][-10:])
+        if len(self.momentum_tracker['return_history']) >= 20:
+            self.momentum_tracker['long_momentum'] = np.mean(self.momentum_tracker['return_history'][-20:])
+        
+        # Professional momentum effects (realistic persistence)
+        momentum_effect = 0.0
+        
+        # Short-term momentum (strongest effect)
+        if abs(self.momentum_tracker['short_momentum']) > 0.01:  # Only for significant moves
+            momentum_persistence = np.random.uniform(0.15, 0.35)  # 15-35% persistence
+            momentum_effect += self.momentum_tracker['short_momentum'] * momentum_persistence
+        
+        # Medium-term momentum (moderate effect)
+        if abs(self.momentum_tracker['medium_momentum']) > 0.005:
+            momentum_persistence = np.random.uniform(0.08, 0.20)  # 8-20% persistence
+            momentum_effect += self.momentum_tracker['medium_momentum'] * momentum_persistence
+        
+        # Apply momentum effect
+        if abs(momentum_effect) > 0.001:  # Only apply significant momentum
             new_price *= np.exp(momentum_effect)
         
-        # Store return for momentum calculation
-        if not hasattr(self, 'previous_returns'):
-            self.previous_returns = []
+        # Professional risk management: Adaptive bounds based on market conditions
+        base_bound = 0.045  # Base ±4.5% daily limit
         
-        current_return = np.log(new_price / current_price)
-        self.previous_returns.append(current_return)
+        # Adjust bounds based on market volatility and regime
+        if volatility_regime_factor > 1.3:  # High volatility periods
+            bound_range = base_bound * 1.4  # Allow wider moves
+        elif volatility_regime_factor > 1.1:  # Moderate volatility
+            bound_range = base_bound * 1.2
+        else:  # Normal volatility
+            bound_range = base_bound
+            
+        # Regime-based adjustments
+        if self.current_regime == 'bear':
+            bound_range *= 1.3  # Allow wider moves in bear markets
+        elif self.current_regime == 'bull':
+            bound_range *= 1.1  # Slightly wider moves in bull markets
+            
+        # Technical condition adjustments
+        if rsi_zone in ["extreme_overbought", "extreme_oversold"]:
+            bound_range *= 1.2  # Allow wider moves at technical extremes
         
-        # Keep only recent returns for momentum calculation
-        if len(self.previous_returns) > 20:
-            self.previous_returns = self.previous_returns[-20:]
-        
-        # Professional price bounds (strict risk management)
-        # Very tight bounds for professional-grade forecasting
-        if total_steps > 252:  # 1+ year: extremely tight
-            bound_range = 0.015  # ±1.5% daily max
-        elif total_steps > 126:  # 6+ months: very tight
-            bound_range = 0.025  # ±2.5% daily max  
-        elif total_steps > 63:   # 3+ months: tight
-            bound_range = 0.035  # ±3.5% daily max
-        else:  # Short term: moderate
-            bound_range = 0.05   # ±5% daily max
+        # Professional circuit breaker (prevent extreme scenarios)
+        max_daily_move = 0.12  # Absolute maximum ±12% daily move
+        bound_range = min(bound_range, max_daily_move)
         
         # Apply professional bounds
         min_price = current_price * (1 - bound_range)
         max_price = current_price * (1 + bound_range)
         new_price = np.clip(new_price, min_price, max_price)
+        
+        # Final sanity check (prevent negative prices)
+        new_price = max(new_price, current_price * 0.3)  # Minimum 70% decline limit
         
         return new_price
 
