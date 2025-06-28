@@ -75,7 +75,7 @@ with st.expander("🔧 System Status & Available Features", expanded=False):
         if TENSORFLOW_AVAILABLE:
             st.success("✅ LSTM Neural Networks (TensorFlow)")
         else:
-            st.warning("⚠️ LSTM Models Limited (TensorFlow not available)")
+            st.info("ℹ️ Using Advanced Scikit-Learn Models (TensorFlow-free deployment)")
             
         if ENHANCED_TRAINING_AVAILABLE:
             st.success("✅ Enhanced Training System")
