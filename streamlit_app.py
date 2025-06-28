@@ -16,36 +16,31 @@ from future_forecasting import FutureForecaster
 import joblib
 import os
 
-# Optional imports - only import if available
+# Optional imports - only import if available (silent during build)
 try:
     from train_enhanced_system import EnhancedTrainingSystem
     ENHANCED_TRAINING_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     ENHANCED_TRAINING_AVAILABLE = False
-    print(f"Enhanced training system not available: {e}")
 
 try:
     from backtesting import Backtester
     BACKTESTING_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     BACKTESTING_AVAILABLE = False
-    print(f"Backtesting module not available: {e}")
 
 try:
     from macro_indicators import MacroIndicators
     MACRO_INDICATORS_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     MACRO_INDICATORS_AVAILABLE = False
-    print(f"Macro indicators module not available: {e}")
 
 # Check for TensorFlow availability
 try:
     import tensorflow as tf
     TENSORFLOW_AVAILABLE = True
-    print("✅ TensorFlow is available")
-except ImportError as e:
+except ImportError:
     TENSORFLOW_AVAILABLE = False
-    print(f"⚠️ TensorFlow not available: {e}")
 
 # Check for additional ML libraries
 try:
@@ -53,17 +48,61 @@ try:
     OPTUNA_AVAILABLE = True
 except ImportError:
     OPTUNA_AVAILABLE = False
-    print("⚠️ Optuna not available - hyperparameter tuning limited")
 
 try:
     import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    print("⚠️ Matplotlib not available - some visualizations may be limited")
 
 st.set_page_config(page_title="Stock Predictor Enhanced Dashboard", layout="wide")
 st.title("📈 Advanced Stock Predictor Dashboard with Macro Analysis")
+
+# Display system status in the app (only show if user wants to see it)
+with st.expander("🔧 System Status & Available Features", expanded=False):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 Core Features")
+        st.success("✅ Stock Data (yfinance)")
+        st.success("✅ Technical Analysis")
+        st.success("✅ Interactive Charts (Plotly)")
+        st.success("✅ Price Forecasting")
+        st.success("✅ Trading Signals")
+        
+    with col2:
+        st.subheader("🤖 Advanced Features")
+        if TENSORFLOW_AVAILABLE:
+            st.success("✅ LSTM Neural Networks (TensorFlow)")
+        else:
+            st.warning("⚠️ LSTM Models Limited (TensorFlow not available)")
+            
+        if ENHANCED_TRAINING_AVAILABLE:
+            st.success("✅ Enhanced Training System")
+        else:
+            st.info("ℹ️ Enhanced Training System (Optional module)")
+            
+        if BACKTESTING_AVAILABLE:
+            st.success("✅ Advanced Backtesting")
+        else:
+            st.info("ℹ️ Advanced Backtesting (Optional module)")
+            
+        if MACRO_INDICATORS_AVAILABLE:
+            st.success("✅ Macro Economic Indicators")
+        else:
+            st.info("ℹ️ Macro Indicators (Optional module)")
+            
+        if OPTUNA_AVAILABLE:
+            st.success("✅ Hyperparameter Optimization")
+        else:
+            st.info("ℹ️ Hyperparameter Tuning (Optuna not available)")
+            
+        if MATPLOTLIB_AVAILABLE:
+            st.success("✅ Advanced Visualizations")
+        else:
+            st.info("ℹ️ Some Advanced Charts (Matplotlib not available)")
+    
+    st.info("💡 All core functionality works regardless of optional features!")
 
 # Helper functions for macro overlay charts
 def create_macro_overlay_chart(stock_data, macro_data, selected_indicators, normalize_data, symbol):
