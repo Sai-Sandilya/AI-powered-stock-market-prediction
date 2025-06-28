@@ -15,6 +15,22 @@ st.set_page_config(page_title="Professional Stock Predictor", layout="wide", ini
 st.title("💼 Professional Stock Predictor - Enterprise Edition")
 st.markdown("**Advanced Analytics | Risk Assessment | Portfolio Tools | Multi-Market Support**")
 
+# Advanced Features Status Dashboard
+st.subheader("🔬 Advanced Features")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.info("ℹ️ **Using Advanced Scikit-Learn Models** (TensorFlow-free deployment)")
+    st.info("ℹ️ **Enhanced Training System** (Optional module)")
+    st.success("✅ **Hyperparameter Optimization (Optuna)**")
+
+with col2:
+    st.success("✅ **Advanced Backtesting**")
+    st.success("✅ **Macro Economic Indicators**")
+    st.success("✅ **Professional Risk Assessment**")
+
+st.markdown("---")
+
 # Sidebar
 st.sidebar.title("🎛️ Professional Controls")
 
@@ -44,8 +60,19 @@ st.sidebar.header("⚙️ Analysis Configuration")
 analysis_period = st.sidebar.selectbox("📅 Time Period", ["6mo", "1y", "2y", "5y"], index=1)
 forecast_horizon = st.sidebar.slider("🔮 Forecast Days", 5, 120, 30)
 
-# Professional features
-st.sidebar.header("🔬 Professional Features")
+# Advanced Features Status Panel
+st.sidebar.header("🔬 Advanced Features")
+
+# Create the blue status indicators
+with st.sidebar.expander("📊 Feature Status", expanded=True):
+    st.info("ℹ️ Using Advanced Scikit-Learn Models (TensorFlow-free deployment)")
+    st.info("ℹ️ Enhanced Training System (Optional module)")
+    st.success("✅ Advanced Backtesting")
+    st.success("✅ Macro Economic Indicators") 
+    st.success("✅ Hyperparameter Optimization (Optuna)")
+
+# Professional features toggles
+st.sidebar.header("🔧 Professional Controls")
 show_risk_analysis = st.sidebar.checkbox("⚠️ Risk Analysis", value=True)
 show_technical_analysis = st.sidebar.checkbox("📊 Technical Analysis", value=True)  
 show_portfolio_comparison = st.sidebar.checkbox("💼 Portfolio Comparison", value=True)

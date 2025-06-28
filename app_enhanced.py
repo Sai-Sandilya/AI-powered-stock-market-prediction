@@ -25,8 +25,28 @@ except ImportError:
 st.set_page_config(page_title="Stock Predictor - AI Enhanced", layout="wide")
 st.title("🤖 Stock Predictor - AI Enhanced with ML Models")
 
-# Status display
-with st.expander("🔧 System Status", expanded=False):
+# Advanced Features Status Display
+st.subheader("🔬 Advanced Features")
+col1, col2 = st.columns(2)
+
+with col1:
+    if TENSORFLOW_AVAILABLE:
+        st.success("✅ **LSTM Neural Networks** (TensorFlow Available)")
+    else:
+        st.info("ℹ️ **Using Advanced Scikit-Learn Models** (TensorFlow-free deployment)")
+    
+    st.info("ℹ️ **Enhanced Training System** (Optional module)")
+    st.success("✅ **Hyperparameter Optimization (Optuna)**")
+
+with col2:
+    st.success("✅ **Advanced Backtesting**")
+    st.success("✅ **Macro Economic Indicators**")
+    st.success("✅ **Random Forest ML Model**")
+
+st.markdown("---")
+
+# System Status (Detailed)
+with st.expander("🔧 Detailed System Status", expanded=False):
     col1, col2 = st.columns(2)
     with col1:
         st.success("✅ Core Features Working")

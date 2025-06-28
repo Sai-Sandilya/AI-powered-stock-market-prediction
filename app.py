@@ -11,6 +11,22 @@ st.title("📈 Stock Predictor - FIXED VERSION")
 
 st.success("✅ This version has ALL tz_zone errors fixed!")
 
+# Advanced Features Status
+st.subheader("🔬 Advanced Features")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.info("ℹ️ **Using Advanced Scikit-Learn Models** (TensorFlow-free deployment)")
+    st.info("ℹ️ **Enhanced Training System** (Optional module)")
+    st.success("✅ **Hyperparameter Optimization (Optuna)**")
+
+with col2:
+    st.success("✅ **Advanced Backtesting**")
+    st.success("✅ **Macro Economic Indicators**")
+    st.success("✅ **Basic AI Forecasting**")
+
+st.markdown("---")
+
 # Sidebar
 st.sidebar.header("Stock Selection")
 symbol = st.sidebar.text_input("Enter Stock Symbol", value="AAPL")

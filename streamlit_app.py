@@ -15,6 +15,7 @@ from plotly.subplots import make_subplots
 from future_forecasting import FutureForecaster
 import joblib
 import os
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 # Optional imports - only import if available (silent during build)
 try:
@@ -45,6 +46,7 @@ except ImportError:
 # Check for additional ML libraries
 try:
     import optuna
+    from optuna_tuning import OptunaTuner, quick_tune_random_forest, get_available_models
     OPTUNA_AVAILABLE = True
 except ImportError:
     OPTUNA_AVAILABLE = False
@@ -93,7 +95,7 @@ with st.expander("🔧 System Status & Available Features", expanded=False):
             st.info("ℹ️ Macro Indicators (Optional module)")
             
         if OPTUNA_AVAILABLE:
-            st.success("✅ Hyperparameter Optimization")
+            st.success("✅ Hyperparameter Optimization (Optuna)")
         else:
             st.info("ℹ️ Hyperparameter Tuning (Optuna not available)")
             
@@ -612,7 +614,7 @@ if st.sidebar.button("Analyze") or symbol:
         is_indian = is_indian_stock(symbol)
 
         # Create tabs for different analyses
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
             "📊 Stock Analysis", 
             "🔮 Future Forecasting",
             "🤖 Enhanced Training",
@@ -620,7 +622,8 @@ if st.sidebar.button("Analyze") or symbol:
             "📰 News Sentiment", 
             "💰 Insider Trading",
             "🌍 Macro Analysis",
-            "⚙️ Settings"
+            "⚙️ Hyperparameter Tuning",
+            "🛠️ Settings"
         ])
 
         with tab1:
@@ -1925,6 +1928,404 @@ if st.sidebar.button("Analyze") or symbol:
                         st.metric("Rate Adjusted Returns", ret_signal, f"{rate_adj_ret:.4f}")
 
         with tab8:
+            st.header("⚙️ Hyperparameter Optimization")
+            st.markdown("Advanced model tuning using Optuna for optimal stock prediction performance.")
+            
+            if not OPTUNA_AVAILABLE:
+                st.error("❌ Optuna not available. Please install optuna to use this feature.")
+                st.code("pip install optuna")
+                return
+            
+            # Display the updated status
+            st.success("✅ **Hyperparameter Optimization (Optuna)** - Ready!")
+            
+            # Model selection
+            st.subheader("🤖 Model Configuration")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                available_models = get_available_models()
+                selected_model = st.selectbox(
+                    "Select Model Type",
+                    available_models,
+                    index=0,
+                    help="Choose the machine learning model to optimize"
+                )
+                
+                n_trials = st.slider(
+                    "Number of Optimization Trials",
+                    min_value=10,
+                    max_value=200,
+                    value=50,
+                    step=10,
+                    help="More trials = better optimization but longer time"
+                )
+                
+                cv_folds = st.slider(
+                    "Cross-Validation Folds",
+                    min_value=3,
+                    max_value=10,
+                    value=5,
+                    help="Number of time-series cross-validation folds"
+                )
+            
+            with col2:
+                st.subheader("📊 Available Models")
+                for model in available_models:
+                    if model == 'random_forest':
+                        st.success("✅ Random Forest - Default, stable performance")
+                    elif model == 'xgboost':
+                        st.success("✅ XGBoost - High performance gradient boosting")
+                    elif model == 'lightgbm':
+                        st.success("✅ LightGBM - Fast gradient boosting")
+                
+                st.info(f"📈 **Selected**: {selected_model.title()}")
+                st.info(f"🔧 **Trials**: {n_trials}")
+                st.info(f"📊 **CV Folds**: {cv_folds}")
+            
+            # Feature engineering options
+            st.subheader("🔧 Feature Engineering")
+            
+            feature_options = st.multiselect(
+                "Select Features for Model Training",
+                [
+                    "Technical Indicators (RSI, MACD, etc.)",
+                    "Moving Averages (SMA, EMA)",
+                    "Price Patterns (OHLC ratios)",
+                    "Volume Indicators",
+                    "Volatility Measures",
+                    "Momentum Indicators"
+                ],
+                default=[
+                    "Technical Indicators (RSI, MACD, etc.)",
+                    "Moving Averages (SMA, EMA)",
+                    "Price Patterns (OHLC ratios)"
+                ]
+            )
+            
+            # Optimization button
+            st.subheader("🚀 Start Optimization")
+            
+            if st.button("🎯 Optimize Model Hyperparameters", type="primary"):
+                if not feature_options:
+                    st.warning("⚠️ Please select at least one feature category.")
+                else:
+                    with st.spinner(f"🔬 Optimizing {selected_model} with {n_trials} trials..."):
+                        try:
+                            # Prepare data for optimization
+                            st.info("📊 Preparing features and target data...")
+                            
+                            # Get comprehensive features
+                            df_features = get_comprehensive_features(df)
+                            
+                            # Select features based on user choice
+                            feature_columns = []
+                            
+                            if "Technical Indicators (RSI, MACD, etc.)" in feature_options:
+                                tech_cols = [col for col in df_features.columns if any(indicator in col.upper() for indicator in ['RSI', 'MACD', 'BB', 'STOCH', 'ROC', 'CCI'])]
+                                feature_columns.extend(tech_cols)
+                            
+                            if "Moving Averages (SMA, EMA)" in feature_options:
+                                ma_cols = [col for col in df_features.columns if any(ma in col.upper() for ma in ['SMA', 'EMA', 'MA_'])]
+                                feature_columns.extend(ma_cols)
+                                
+                            if "Price Patterns (OHLC ratios)" in feature_options:
+                                price_cols = [col for col in df_features.columns if any(pattern in col.upper() for pattern in ['HIGH_LOW', 'OPEN_CLOSE', 'RATIO', 'RANGE'])]
+                                feature_columns.extend(price_cols)
+                                
+                            if "Volume Indicators" in feature_options:
+                                vol_cols = [col for col in df_features.columns if 'VOLUME' in col.upper() or 'OBV' in col.upper()]
+                                feature_columns.extend(vol_cols)
+                                
+                            if "Volatility Measures" in feature_options:
+                                vol_cols = [col for col in df_features.columns if any(vol in col.upper() for vol in ['VOLATILITY', 'ATR', 'STD'])]
+                                feature_columns.extend(vol_cols)
+                                
+                            if "Momentum Indicators" in feature_options:
+                                mom_cols = [col for col in df_features.columns if any(mom in col.upper() for mom in ['MOMENTUM', 'RATE_OF_CHANGE', 'WILLIAMS'])]
+                                feature_columns.extend(mom_cols)
+                            
+                            # Remove duplicates and ensure we have features
+                            feature_columns = list(set(feature_columns))
+                            
+                            if not feature_columns:
+                                # Fallback to basic features
+                                feature_columns = ['RSI', 'MACD', 'BB_upper', 'BB_lower', 'SMA_20', 'EMA_12']
+                                feature_columns = [col for col in feature_columns if col in df_features.columns]
+                            
+                            if len(feature_columns) == 0:
+                                st.error("❌ No suitable features found. Please check your data.")
+                                return
+                            
+                            # Prepare features and target
+                            X = df_features[feature_columns].dropna()
+                            y = df_features['Close'].shift(-1).dropna()  # Predict next day's close
+                            
+                            # Align X and y
+                            min_len = min(len(X), len(y))
+                            X = X.iloc[:min_len]
+                            y = y.iloc[:min_len]
+                            
+                            if len(X) < 50:
+                                st.error("❌ Insufficient data for optimization. Need at least 50 data points.")
+                                return
+                            
+                            st.success(f"✅ Prepared {len(X)} samples with {len(feature_columns)} features")
+                            
+                            # Progress tracking
+                            progress_bar = st.progress(0)
+                            progress_text = st.empty()
+                            
+                            # Initialize tuner
+                            tuner = OptunaTuner(
+                                X=X,
+                                y=y,
+                                model_type=selected_model,
+                                n_trials=n_trials,
+                                cv_folds=cv_folds
+                            )
+                            
+                            # Custom progress callback
+                            def update_progress(study, trial):
+                                progress = trial.number / n_trials
+                                progress_bar.progress(progress)
+                                progress_text.text(f"Trial {trial.number + 1}/{n_trials} - Best Score: {study.best_value:.6f}")
+                            
+                            # Run optimization
+                            results = tuner.optimize(show_progress=False)
+                            
+                            # Add custom progress tracking
+                            tuner.study.optimize(
+                                tuner.objective_random_forest if selected_model == 'random_forest' else 
+                                tuner.objective_xgboost if selected_model == 'xgboost' else 
+                                tuner.objective_lightgbm,
+                                n_trials=0,  # Already optimized
+                                callbacks=[update_progress]
+                            )
+                            
+                            progress_bar.progress(1.0)
+                            progress_text.text("✅ Optimization Complete!")
+                            
+                            # Display results
+                            st.success("🎉 **Optimization Complete!**")
+                            
+                            # Results summary
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Best Score (MSE)", f"{results['best_value']:.6f}")
+                            
+                            with col2:
+                                st.metric("Trials Completed", results['n_trials'])
+                            
+                            with col3:
+                                st.metric("Model Type", selected_model.title())
+                            
+                            # Best parameters
+                            st.subheader("🏆 Best Hyperparameters")
+                            
+                            params_df = pd.DataFrame([
+                                {"Parameter": k, "Value": v} 
+                                for k, v in results['best_params'].items()
+                            ])
+                            st.dataframe(params_df, use_container_width=True)
+                            
+                            # Model performance
+                            st.subheader("📊 Model Performance")
+                            
+                            performance = tuner.get_model_performance()
+                            
+                            perf_col1, perf_col2 = st.columns(2)
+                            
+                            with perf_col1:
+                                st.metric("Cross-Validation MSE", f"{performance['cv_mse']:.6f}")
+                                st.metric("CV Standard Deviation", f"{performance['cv_std']:.6f}")
+                            
+                            with perf_col2:
+                                # Calculate R² equivalent
+                                baseline_mse = np.var(y)  # Variance as baseline
+                                r2_equivalent = 1 - (performance['cv_mse'] / baseline_mse)
+                                st.metric("R² Equivalent", f"{r2_equivalent:.4f}")
+                                
+                                # Performance rating
+                                if r2_equivalent > 0.8:
+                                    rating = "🟢 Excellent"
+                                elif r2_equivalent > 0.6:
+                                    rating = "🟡 Good"
+                                elif r2_equivalent > 0.4:
+                                    rating = "🟠 Fair"
+                                else:
+                                    rating = "🔴 Poor"
+                                
+                                st.metric("Performance Rating", rating)
+                            
+                            # Feature importance
+                            st.subheader("📈 Feature Importance")
+                            
+                            importance_df = tuner.get_feature_importance(feature_names=feature_columns)
+                            
+                            if not importance_df.empty:
+                                # Display top 10 most important features
+                                top_features = importance_df.head(10)
+                                
+                                fig = px.bar(
+                                    top_features,
+                                    x='importance',
+                                    y='feature',
+                                    orientation='h',
+                                    title="Top 10 Most Important Features",
+                                    labels={'importance': 'Importance Score', 'feature': 'Feature'}
+                                )
+                                fig.update_layout(height=400)
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                                # Full importance table
+                                with st.expander("📋 All Feature Importances"):
+                                    st.dataframe(importance_df, use_container_width=True)
+                            
+                            # Optimization history
+                            st.subheader("📊 Optimization History")
+                            
+                            history_df = tuner.get_optimization_history()
+                            
+                            if not history_df.empty:
+                                # Plot optimization progress
+                                fig = go.Figure()
+                                
+                                fig.add_trace(go.Scatter(
+                                    x=history_df.index,
+                                    y=history_df['value'],
+                                    mode='lines+markers',
+                                    name='Trial Score',
+                                    line=dict(color='blue', width=2)
+                                ))
+                                
+                                # Add best score line
+                                best_score_line = [results['best_value']] * len(history_df)
+                                fig.add_trace(go.Scatter(
+                                    x=history_df.index,
+                                    y=best_score_line,
+                                    mode='lines',
+                                    name='Best Score',
+                                    line=dict(color='red', dash='dash', width=2)
+                                ))
+                                
+                                fig.update_layout(
+                                    title="Optimization Progress",
+                                    xaxis_title="Trial Number",
+                                    yaxis_title="Score (MSE)",
+                                    height=400
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Save model option
+                            st.subheader("💾 Save Optimized Model")
+                            
+                            if st.button("💾 Save Best Model"):
+                                model_filename = f"{symbol}_{selected_model}_optimized_model.joblib"
+                                tuner.save_model(model_filename)
+                                st.success(f"✅ Model saved as {model_filename}")
+                                st.info("🔍 Model includes best parameters, scaler, and trained model")
+                            
+                            # Model comparison
+                            st.subheader("🏁 Model vs Baseline Comparison")
+                            
+                            # Quick baseline comparison (simple moving average)
+                            baseline_pred = df['Close'].rolling(window=20).mean().shift(1)
+                            baseline_mse = mean_squared_error(
+                                y[20:], baseline_pred.iloc[len(baseline_pred)-len(y):len(baseline_pred)-len(y)+len(y[20:])].dropna()
+                            )
+                            
+                            comparison_data = pd.DataFrame({
+                                'Model': ['Baseline (20-day MA)', f'Optimized {selected_model.title()}'],
+                                'MSE': [baseline_mse, results['best_value']],
+                                'Improvement': ['0%', f"{((baseline_mse - results['best_value']) / baseline_mse * 100):.1f}%"]
+                            })
+                            
+                            st.dataframe(comparison_data, use_container_width=True)
+                            
+                            improvement = (baseline_mse - results['best_value']) / baseline_mse * 100
+                            if improvement > 0:
+                                st.success(f"🎉 Optimized model is {improvement:.1f}% better than baseline!")
+                            else:
+                                st.warning("⚠️ Optimized model performs similar to baseline. Consider more data or different features.")
+                            
+                            # Next steps
+                            st.subheader("🚀 Next Steps")
+                            st.markdown("""
+                            **With your optimized model, you can:**
+                            
+                            1. **🔮 Generate Predictions**: Use the optimized model for more accurate forecasts
+                            2. **📊 Backtest Strategy**: Test the model on historical data
+                            3. **⚡ Real-time Trading**: Integrate the model into live trading systems
+                            4. **🔄 Retrain Regularly**: Update the model with new data periodically
+                            5. **📈 Monitor Performance**: Track model accuracy over time
+                            
+                            **Performance Tips:**
+                            - Models perform best when retrained with recent data
+                            - Consider ensemble methods combining multiple optimized models
+                            - Monitor for market regime changes that may affect model performance
+                            """)
+                            
+                        except Exception as e:
+                            st.error(f"❌ Optimization failed: {str(e)}")
+                            st.exception(e)
+                            
+                            # Troubleshooting help
+                            with st.expander("🔧 Troubleshooting"):
+                                st.markdown("""
+                                **Common issues and solutions:**
+                                
+                                1. **Insufficient Data**: Ensure you have at least 100+ data points
+                                2. **Missing Features**: Check that technical indicators are calculated
+                                3. **Memory Issues**: Reduce number of trials or cross-validation folds
+                                4. **Model Dependencies**: Ensure scikit-learn and optuna are up to date
+                                
+                                **Try these fixes:**
+                                - Increase the date range to get more data
+                                - Reduce number of optimization trials
+                                - Select fewer feature categories
+                                - Check internet connection for data fetching
+                                """)
+            
+            # Information about Optuna
+            with st.expander("ℹ️ About Hyperparameter Optimization", expanded=False):
+                st.markdown("""
+                **What is Hyperparameter Optimization?**
+                
+                Hyperparameter optimization automatically finds the best configuration for machine learning models to maximize performance on your specific dataset.
+                
+                **How Optuna Works:**
+                
+                1. **Bayesian Optimization**: Intelligently explores the hyperparameter space
+                2. **Pruning**: Stops unpromising trials early to save time
+                3. **Cross-Validation**: Ensures robust performance estimates
+                4. **Multi-objective**: Can optimize for multiple metrics simultaneously
+                
+                **Benefits for Stock Prediction:**
+                
+                - **Better Accuracy**: Optimized models typically perform 10-30% better
+                - **Reduced Overfitting**: Proper validation prevents overfitting
+                - **Automatic Tuning**: No manual parameter guessing
+                - **Time-efficient**: Smart search saves computational time
+                
+                **Model Types Available:**
+                
+                - **Random Forest**: Stable, interpretable, good baseline
+                - **XGBoost**: High performance, handles missing data well
+                - **LightGBM**: Fast training, memory efficient
+                
+                **Tips for Best Results:**
+                
+                - Use at least 50-100 trials for meaningful optimization
+                - Include diverse feature types for robust predictions
+                - More cross-validation folds = more reliable estimates
+                - Regularly retrain models as market conditions change
+                """)
+
+        with tab9:
             st.subheader("Settings")
             
             # Stock selection
