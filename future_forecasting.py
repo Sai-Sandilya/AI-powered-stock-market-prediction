@@ -194,11 +194,21 @@ class FutureForecaster:
             Dictionary of forecasted macro data
         """
         forecasted_macro = {}
-        future_dates = pd.date_range(
-            start=datetime.now() + timedelta(days=1),
-            periods=forecast_days,
-            freq='D'
-        )
+        # Generate future dates with robust timezone handling
+        try:
+            future_dates = pd.date_range(
+                start=datetime.now() + timedelta(days=1),
+                periods=forecast_days,
+                freq='D'
+            )
+        except Exception as e:
+            print(f"⚠️ Macro date range generation failed: {e}")
+            # Fallback to simple date generation
+            future_dates = []
+            start_date = datetime.now() + timedelta(days=1)
+            for i in range(forecast_days):
+                future_dates.append(start_date + timedelta(days=i))
+            future_dates = pd.DatetimeIndex(future_dates)
         
         for indicator_name, df in macro_data.items():
             if df.empty:
@@ -349,12 +359,30 @@ class FutureForecaster:
         last_row = df.iloc[-1].copy()
         current_price = last_row['Close']
         
-        # Generate future dates (business days)
-        future_dates = pd.date_range(
-            start=df['Date'].iloc[-1] + timedelta(days=1),
-            periods=forecast_days,
-            freq='B'  # Business days
-        )
+        # Generate future dates (business days) - robust timezone handling
+        try:
+            # Try with explicit timezone handling
+            start_date = df['Date'].iloc[-1] + timedelta(days=1)
+            if hasattr(start_date, 'tz_localize') and start_date.tz is None:
+                start_date = start_date.tz_localize(None)
+            elif hasattr(start_date, 'tz_convert'):
+                start_date = start_date.tz_convert(None)
+            
+            future_dates = pd.date_range(
+                start=start_date,
+                periods=forecast_days,
+                freq='B'  # Business days
+            )
+        except Exception as date_error:
+            print(f"⚠️ Date range generation failed: {date_error}")
+            # Fallback: Use simple daily dates without business day logic
+            start_date = df['Date'].iloc[-1] + timedelta(days=1)
+            future_dates = []
+            current_date = start_date
+            for i in range(forecast_days):
+                future_dates.append(current_date)
+                current_date += timedelta(days=1)
+            future_dates = pd.DatetimeIndex(future_dates)
         
         print(f"📅 Forecasting for {len(future_dates)} business days...")
         
@@ -568,6 +596,20 @@ class FutureForecaster:
         # Volatility adapts to market conditions (not just forecast length)
         volatility_regime_factor = 1.0
         
+        # Get RSI for technical analysis (moved up to avoid scoping error)
+        rsi = last_row.get('RSI_14', 50)
+        
+        # Professional RSI interpretation (less mechanical, more probabilistic)
+        rsi_zone = "neutral"
+        if rsi > 75:
+            rsi_zone = "extreme_overbought"
+        elif rsi > 65:
+            rsi_zone = "overbought"  
+        elif rsi < 25:
+            rsi_zone = "extreme_oversold"
+        elif rsi < 35:
+            rsi_zone = "oversold"
+        
         # Adjust volatility based on technical conditions
         if rsi_zone in ["extreme_overbought", "extreme_oversold"]:
             volatility_regime_factor = 1.4  # Higher volatility at extremes
@@ -707,20 +749,8 @@ class FutureForecaster:
         mean_reversion = (short_reversion + medium_reversion + long_reversion) * reversion_multiplier
         
         # Professional technical analysis: More nuanced and realistic
-        rsi = last_row.get('RSI_14', 50)
         macd = last_row.get('MACD', 0)
         macd_signal = last_row.get('MACD_Signal', 0)
-        
-        # Professional RSI interpretation (less mechanical, more probabilistic)
-        rsi_zone = "neutral"
-        if rsi > 75:
-            rsi_zone = "extreme_overbought"
-        elif rsi > 65:
-            rsi_zone = "overbought"  
-        elif rsi < 25:
-            rsi_zone = "extreme_oversold"
-        elif rsi < 35:
-            rsi_zone = "oversold"
             
         # RSI effects with randomness (not guaranteed)
         if rsi_zone == "extreme_overbought" and np.random.random() < 0.6:  # 60% chance
