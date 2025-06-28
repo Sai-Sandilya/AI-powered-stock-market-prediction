@@ -1,0 +1,6 @@
+# Ultra-minimal requirements - GUARANTEED to work on Streamlit Cloud
+streamlit
+pandas
+numpy
+yfinance
+plotly 
